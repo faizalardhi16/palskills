@@ -1,29 +1,43 @@
 ---
 name: lyleen
-description: "Palbox reader & bootstrapper — creates .palbox/ if missing, then studies the second brain to retrieve relevant project context: flows, architecture, methods, and past work."
-version: 2.0.0
+description: "Palbox knowledge graph reader & bootstrapper — creates .palbox/ if missing, then traverses [[wikilinks]] to retrieve connected context like an Obsidian vault."
+version: 3.0.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [palskills, palbox, second-brain, context-retrieval, bootstrapper]
+    tags: [palskills, palbox, knowledge-graph, wikilinks, context-retrieval, bootstrapper]
     related_skills: [astralym, jetdragon, anubis, panthalus]
 ---
 
-# Lyleen — Palbox Reader & Bootstrapper
+# Lyleen — Knowledge Graph Reader & Bootstrapper
 
-Lyleen is the **gatekeeper** of the palskills second brain. When invoked, it first checks whether `.palbox/` exists. If not, Lyleen **bootstraps the entire palbox structure** by analyzing the codebase and creating foundational documentation. Once the palbox exists, Lyleen retrieves context relevant to the user's prompt.
+Lyleen is the **gatekeeper** of the palskills knowledge graph. The palbox is an Obsidian-style interconnected vault where every `.md` file is a **node** and `[[wikilinks]]` form the **edges**. When invoked, Lyleen first checks whether `.palbox/` exists — if not, it bootstraps the entire graph from the codebase. Once the graph exists, Lyleen traverses wikilinks to retrieve a **context subgraph** relevant to the user's prompt.
 
-## What is Palbox?
+## Palbox as a Knowledge Graph
 
-Palbox (`.palbox/`) is the project's persistent second brain — a markdown-based knowledge base that stores everything an AI agent needs to work effectively on the project:
+```
+                    .palbox/
+                        │
+              ┌─────────┼──────────┐
+              ▼         ▼          ▼
+         README.md  architecture  methods.md
+              │         │              │
+         [[architecture]]  [[methods]]   [[flows/auth]]
+         [[methods]]       [[flows/*]]   [[history/*]]
+              │         │              │
+              └────┬────┴──────┬───────┘
+                   │           │
+                   ▼           ▼
+               flows/      history/
+              auth.md     2026-07-19-login.md
+                 │              │
+            [[methods]]    [[flows/auth]]
+            [[history/*]]  [[architecture]]
+```
 
-- **Project identity** — what this project is, tech stack, goals
-- **Codebase map** — folder architecture, module organization, design patterns
-- **Development methods** — coding conventions, testing strategies, workflows
-- **Project flows** — how features work, data pipelines, user journeys
-- **Past work** — historical plans + execution results for reference
+**Nodes** = `.md` files. **Edges** = `[[wikilinks]]` between them.
 
 ## How It Works
 
@@ -33,13 +47,9 @@ Palbox (`.palbox/`) is the project's persistent second brain — a markdown-base
 ls .palbox/ 2>/dev/null
 ```
 
-### Step 2a: Palbox Exists → Read & Retrieve
+### Step 2a: Palbox Missing → BOOTSTRAP
 
-If `.palbox/` exists, proceed to **context retrieval** (see Step 3 below).
-
-### Step 2b: Palbox Missing → BOOTSTRAP
-
-If `.palbox/` does NOT exist, Lyleen **creates it from scratch** by analyzing the codebase. This is critical — without a palbox, the entire palskills pipeline lacks context.
+If `.palbox/` does NOT exist, Lyleen creates the knowledge graph from scratch.
 
 #### Bootstrap Process
 
@@ -49,36 +59,19 @@ If `.palbox/` does NOT exist, Lyleen **creates it from scratch** by analyzing th
 mkdir -p .palbox/{flows,history,plans}
 ```
 
-**2. Analyze the codebase and create core documents:**
-
-Lyleen MUST thoroughly scan the project before writing anything. Use these commands:
+**2. Analyze the codebase:**
 
 ```bash
-# Understand project structure
 find . -maxdepth 2 -type d ! -path './.git/*' ! -path './node_modules/*' ! -path './__pycache__/*' ! -path './.venv/*' | sort
-
-# Detect tech stack
-ls -la package.json requirements.txt pyproject.toml go.mod Cargo.toml Gemfile pom.xml build.gradle 2>/dev/null
-
-# Count code by language
-# (use pygount or cloc if available, otherwise manual inspection)
-
-# Read existing README if any
-cat README.md 2>/dev/null || cat README.rst 2>/dev/null
-
-# Check git history for project age and activity
+ls -la package.json requirements.txt pyproject.toml go.mod Cargo.toml 2>/dev/null
+cat README.md 2>/dev/null
 git log --oneline --since="3 months ago" | head -20
-git log --format="%an" | sort | uniq -c | sort -rn | head -5
-
-# Detect testing patterns
 find . -name '*test*' -o -name '*spec*' | head -20
-
-# Detect config files
-ls -la .env* .config* config.* docker-compose* Dockerfile* 2>/dev/null
 ```
 
-**3. Create `.palbox/README.md`:**
+**3. Create interconnected core documents with wikilinks:**
 
+`.palbox/README.md` — the root node, links to everything:
 ```markdown
 # [Project Name]
 
@@ -86,23 +79,21 @@ ls -la .env* .config* config.* docker-compose* Dockerfile* 2>/dev/null
 **Bootstrapped by:** Lyleen (palskills)
 
 ## Overview
-[Brief description derived from existing README or codebase analysis]
+[Brief description]
 
 ## Tech Stack
-- **Language:** [Python | TypeScript | Go | Rust | etc.]
-- **Runtime/Framework:** [e.g., FastAPI, React, Express]
-- **Database:** [e.g., PostgreSQL, SQLite, MongoDB]
-- **Key Dependencies:** [list major libraries]
+- **Language:** [...]
+- **Framework:** [...]
+- **Database:** [...]
 
-## Project Goal
-[What problem does this project solve? — derived from README or context]
-
-## Quick Start
-[How to run the project — derived from package.json scripts, Makefile, etc.]
+## Knowledge Graph
+- [[architecture]] — folder structure & design patterns
+- [[methods]] — coding conventions & standards
+- [[flows/]] — feature workflow documentation
+- [[history/]] — past development sessions
 ```
 
-**4. Create `.palbox/architecture.md`:**
-
+`.palbox/architecture.md` — codebase map:
 ```markdown
 # Architecture
 
@@ -110,155 +101,143 @@ ls -la .env* .config* config.* docker-compose* Dockerfile* 2>/dev/null
 
 ## Folder Structure
 ```
-[Actual directory tree with annotations]
-project/
-├── src/           # Main source code
-│   ├── models/    # Data models
-│   ├── services/  # Business logic
-│   ├── routes/    # API endpoints
-│   └── utils/     # Shared utilities
-├── tests/         # Test suite
-├── docs/          # Documentation
-└── config/        # Configuration files
+[annotated tree]
 ```
 
-## Design Patterns in Use
-[Patterns detected from codebase inspection]
+## Design Patterns
+[Patterns detected]
 
 ## Key Modules
-| Module | Responsibility | Key Files |
-|--------|---------------|-----------|
-| ... | ... | ... |
+| Module | Responsibility |
+|--------|---------------|
+| ... | ... |
 
-## Data Flow
-[How data moves through the system — from entry to exit]
+## Related
+- [[methods]] — how we build
+- [[README]] — project overview
 ```
 
-**5. Create `.palbox/methods.md`:**
-
+`.palbox/methods.md` — conventions:
 ```markdown
 # Development Methods
 
 **Last Updated:** YYYY-MM-DD
 
 ## Coding Conventions
-[Detected from codebase: naming patterns, style, linting config]
+[...]
 
 ## Testing Strategy
-[Detected from test files: framework, patterns, coverage expectations]
+[...]
 
 ## Git Workflow
-[Detected from git history: branch naming, commit conventions]
+[...]
 
-## Code Review Standards
-[Defaults — update as patterns emerge]
+## Related
+- [[architecture]] — where things live
+- [[README]] — project overview
 ```
 
-**6. Report bootstrap results:**
+**4. Report:**
 
 ```
-## Palbox Bootstrapped ✓
+## Palbox Knowledge Graph Bootstrapped ✓
 
-Created `.palbox/` with:
-- `README.md` — project overview
-- `architecture.md` — folder structure + design patterns
-- `methods.md` — conventions + testing strategy
-- `flows/` — (empty) project workflow docs
-- `history/` — (empty) past work archive
+Created `.palbox/` with interconnected nodes:
+- [[README]] — root node, links to all core docs
+- [[architecture]] — codebase map ↔ [[methods]]
+- [[methods]] — conventions ↔ [[architecture]]
+- `flows/` — (empty) ready for feature docs
+- `history/` — (empty) ready for session records
 
-I analyzed [N] files across [M] modules to build this.
+Graph has [N] nodes and [M] edges.
 ```
 
-### Step 3: Context Retrieval (Palbox Exists)
+### Step 2b: Palbox Exists → TRAVERSE
 
-After bootstrap (or if palbox already existed), retrieve context relevant to the user's prompt:
+**Phase 1: Seed Discovery**
 
-**1. Read core documents:**
+Find palbox entries that directly match the user's prompt keywords:
 
 ```bash
-cat .palbox/README.md
-cat .palbox/architecture.md
-cat .palbox/methods.md
+grep -ril "<keyword1>\|<keyword2>" .palbox/ --include="*.md" | head -10
 ```
 
-**2. Semantic search for relevant context:**
+Each matching file is a **seed node**.
 
-Use `search_files` / `grep` to find palbox entries matching the user's prompt keywords:
+**Phase 2: Graph Traversal**
 
-```bash
-grep -ri "<keyword1>\|<keyword2>" .palbox/ --include="*.md" -l
+For each seed node, extract all `[[wikilinks]]` and follow them 1-2 hops:
+
+```python
+# Pseudo-code for link traversal
+visited = set()
+queue = seed_nodes
+
+for node in queue:
+    visited.add(node)
+    content = read(".palbox/" + node)
+    links = extract_wikilinks(content)  # regex: \[\[([^\]]+)\]\] 
+    for link in links:
+        resolved = resolve_link(link)  # handle paths, .md extension
+        if resolved not in visited:
+            queue.append(resolved)
+            if depth > max_depth: break
 ```
 
-**3. Load relevant flows and history:**
+**Phase 3: Build Context Subgraph**
 
-```bash
-# Check flows/
-ls .palbox/flows/
-
-# Check most recent history
-ls -t .palbox/history/ | head -5
-```
-
-### Step 4: Deliver Context Summary
-
-Return a structured summary to **Astralym** (or directly to the user):
+Return the connected subgraph as structured context:
 
 ```
-## Palbox Context
+## Palbox Context (Knowledge Graph)
 
-### Project
-**Name:** [from README]
-**Stack:** [tech stack]
-**Goal:** [project goal]
+### Seed: [[flows/auth-login]]
+Matched: "login", "authentication"
 
-### Architecture
-[Key patterns, folder structure highlights]
+### Linked Nodes (1 hop)
+- [[architecture]] — Auth module lives in `src/auth/`
+- [[methods]] — Uses JWT + refresh token pattern
 
-### Relevant Past Work
-- [History entry] — [summary]
-- [History entry] — [summary]
+### Linked Nodes (2 hops)  
+- [[history/2026-07-10-jwt-refresh]] — Previous JWT refresh work
+- [[history/2026-06-28-session-store]] — Session storage refactor
 
-### Relevant Flows
-- [Flow doc] — [summary]
-
-### Conventions
-[Key methods and standards]
-
-### Codex Note
-[Any Codex-specific context for prompt construction]
+### Graph Summary
+- **Nodes traversed:** 5
+- **Relevant past work:** 2 sessions
+- **Conventions found:** JWT pattern, testing with pytest
 ```
 
-If nothing relevant is found:
-```
-## Palbox Context
+**Phase 4: Deliver**
 
-**Project:** [name + stack]
-**Relevant Context:** None found for this prompt.
-**Recommendation:** Jetdragon will plan from scratch. After execution, Panthalus will record the new knowledge.
-```
+Return the subgraph to Astralym/Jetdragon. The context is now **relational** — not just a flat list of files, but a connected graph of knowledge.
 
-## Palbox Structure
+## Wikilink Conventions
 
-```
-.palbox/
-├── README.md              # Project identity: name, stack, goals, quick start
-├── architecture.md         # Codebase map: folders, modules, patterns, data flow
-├── methods.md              # Conventions: coding, testing, git, reviews
-├── flows/                  # Feature-specific workflow documentation
-│   └── *.md                #   One file per major flow/feature
-├── plans/                  # Active and draft plans (Jetdragon's workspace)
-│   └── YYYY-MM-DD-*.md
-└── history/                # Past execution records (Panthalus' archive)
-    └── YYYY-MM-DD-*.md
-```
+| Syntax | Meaning |
+|--------|---------|
+| `[[architecture]]` | Links to `.palbox/architecture.md` |
+| `[[methods]]` | Links to `.palbox/methods.md` |
+| `[[flows/auth]]` | Links to `.palbox/flows/auth.md` |
+| `[[history/2026-07-19-feature]]` | Links to a specific history entry |
+| `[[methods#testing-strategy]]` | Links to a heading within a page |
+| `[[architecture|see architecture]]` | Aliased link (display text differs) |
+
+## Traversal Rules
+
+1. **Max depth: 2 hops** — enough for context, prevents graph explosion
+2. **Bidirectional awareness** — if A links to B, treat B's link to A as redundant
+3. **Prioritize seeds** — direct matches are primary; linked nodes are supporting
+4. **Skip cycles** — `visited` set prevents infinite loops
+5. **Highlight orphans** — if a seed has no wikilinks, flag it so user can enrich
 
 ## Rules
 
-1. **Bootstrap if missing** — never return "palbox not found"; create it
-2. **Analyze before writing** — read actual files, don't guess the codebase
-3. **Be thorough but concise** — capture what matters, skip what's obvious
-4. **Prioritize relevance** — context summary should match the user's current prompt
-5. **Highlight gaps** — if bootstrap can't determine something, mark it `[TODO]`
-6. **Read, don't write** — after bootstrap, Lyleen only reads; Panthalus handles updates
-7. **Bootstrap is a one-time event** — subsequent calls just read
-8. **Update core docs sparingly** — bootstrap creates; only Panthalus updates when patterns change
+1. **Bootstrap if missing** — never return "palbox not found"; create the graph
+2. **Analyze before writing** — read actual files, don't guess
+3. **Traverse wikilinks** — context retrieval is graph traversal, not grep
+4. **Return subgraphs** — provide related nodes, not isolated files
+5. **Max 2 hops** — enough context without noise
+6. **Report graph stats** — nodes traversed, links followed, orphans found
+7. **Bootstrap is one-time** — subsequent calls traverse the existing graph
+8. **Bidirectional links matter** — Panthalus maintains them; Lyleen exploits them

@@ -1,105 +1,60 @@
 ---
 name: jetdragon
-description: "Planning specialist — asks clarifying questions, generates detailed implementation plans from user prompts and palbox context."
-version: 1.0.0
+description: "Planning specialist — asks clarifying questions, generates detailed plans with [[wikilinks]] to palbox context, and produces Codex-ready prompts."
+version: 1.1.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [palskills, planning, clarification, specification]
+    tags: [palskills, planning, clarification, wikilinks, knowledge-graph]
     related_skills: [astralym, lyleen, anubis, panthalus]
 ---
 
 # Jetdragon — Planning & Clarification
 
-Jetdragon is the **planning engine** of the palskills system. Its sole job: take a user prompt (+ palbox context from Lyleen) and produce a detailed, actionable implementation plan. It **asks questions** until the plan is crystal clear.
+Jetdragon is the **planning engine** of the palskills system. It receives a context subgraph from **Lyleen** (not just flat context — a connected graph of palbox nodes with `[[wikilinks]]`) and produces a detailed implementation plan. It **asks questions** until the plan is crystal clear.
 
 ## Philosophy
 
 > A bad plan produces bad code. Jetdragon's job is to eliminate ambiguity before a single line of code is written.
 
-Per the user's convention: **brainstorming dulu, baru kode**. Jetdragon embodies this — it will not hand off to Anubis until the user explicitly says "Gas" (or equivalent).
+Per the user's convention: **brainstorming dulu, baru kode**. Jetdragon embodies this — it will not hand off to Anubis until the user explicitly says "Gas".
 
 ## How It Works
 
-### Step 1: Absorb Context
+### Step 1: Absorb the Knowledge Graph
 
-Jetdragon receives:
+Jetdragon receives from Lyleen:
 - The user's original prompt
-- Palbox context from **Lyleen** (architecture, conventions, past work)
+- A **context subgraph** — seed nodes + their wikilink neighbors (1-2 hops)
 
-### Step 2: Generate Initial Plan
+Example subgraph:
+```
+Seed: [[flows/auth-login]]
+  ├── [[architecture]] → Auth module in `src/auth/`
+  ├── [[methods]] → JWT + refresh token pattern
+  ├── [[history/2026-07-10-jwt-refresh]] → Previous JWT work
+  └── [[history/2026-06-28-session-store]] → Session storage refactor
+```
 
-Create a markdown plan file at `.palbox/plans/YYYY-MM-DD-feature-name.md`:
+### Step 2: Generate Initial Plan with Wikilinks
+
+Create `.palbox/plans/YYYY-MM-DD-feature-name.md`:
 
 ```markdown
 # Plan: [Feature Name]
 **Date:** YYYY-MM-DD
 **Status:** DRAFT — awaiting user feedback
 
+## Knowledge Graph Context
+- [[flows/auth-login]] — This plan extends the auth flow
+- [[architecture]] — Relevant module: `src/auth/`
+- [[methods]] — Follows JWT conventions
+- [[history/2026-07-10-jwt-refresh]] — Builds on previous JWT work
+
 ## Overview
 [2-3 sentences describing what will be built]
-
-## Scope
-- **In scope:** ...
-- **Out of scope:** ...
-
-## Implementation Plan
-
-### 1. [Task Title]
-- **Files:** `path/to/file.py`
-- **Approach:** [what to do]
-- **Acceptance Criteria:** [how to verify]
-
-### 2. [Task Title]
-- ...
-
-## Technical Decisions
-| Decision | Rationale |
-|----------|-----------|
-| ... | ... |
-
-## Open Questions
-1. ???
-2. ???
-```
-
-### Step 3: Ask Clarifying Questions
-
-Jetdragon **must** ask questions when anything is ambiguous. Use the `clarify` tool or inline questions:
-
-**Categories of questions to ask:**
-- **Scope boundaries** — "Should this also handle X, or only Y?"
-- **Design choices** — "Use class-based approach or functional?"
-- **Edge cases** — "What happens when the input is empty?"
-- **Integration points** — "Does this need to integrate with the existing auth module?"
-- **Priority** — "Which part should be built first?"
-
-### Step 4: Iterate Until Clear
-
-The user responds → Jetdragon updates the plan → asks more questions → repeat.
-
-The cycle ends when:
-- The user says **"Gas"**, **"Go"**, **"Execute"**, or similar explicit approval
-- All open questions are resolved
-
-### Step 5: Finalize Plan
-
-When approved:
-- Update plan status: `Status: APPROVED`
-- Hand off to **Anubis** for development
-
-## Plan Format Template
-
-```markdown
-# Plan: [Feature Name]
-**Date:** YYYY-MM-DD
-**Status:** APPROVED
-**Palbox Context:** [links to relevant .palbox/ files]
-
-## Overview
-...
 
 ## Scope
 - **In scope:** ...
@@ -109,45 +64,64 @@ When approved:
 ### Task 1: [Name]
 - **What:** ...
 - **Files to touch:** ...
-- **Dependencies:** ...
+- **Linked context:** [[architecture]], [[methods]]
 - **Verification:** ...
 
 ### Task 2: [Name]
 ...
 
-## Architecture Notes
-- **Pattern:** [e.g., Repository pattern, Factory, etc.]
-- **SOLID focus:** [which principles are most relevant]
-
-## Risks & Mitigations
-| Risk | Mitigation |
-|------|------------|
-| ... | ... |
+## Open Questions
+1. ???
+2. ???
 ```
+
+### Step 3: Ask Clarifying Questions
+
+Jetdragon **must** ask when ambiguous. Categories:
+- **Scope** — "Should this also handle X?"
+- **Design** — "Class-based or functional?"
+- **Edge cases** — "What happens when input is empty?"
+- **Integration** — "Does this need to integrate with [[flows/payment]]?"
+- **Priority** — "Which task first?"
+
+### Step 4: Iterate Until Clear
+
+Cycle: user responds → Jetdragon updates plan → asks more → repeat.
+
+Ends when: user says **"Gas"**, **"Go"**, **"Execute"**.
+
+### Step 5: Finalize & Hand Off
+
+- Status → `APPROVED`
+- Add `## Codex Prompt` section (self-contained, English, includes linked context summaries)
+- Hand off to **Anubis**
 
 ## Codex-Ready Output
 
-Every plan must include a **"Codex Prompt" section** at the end — a self-contained prompt block that Anubis can pass directly to `codex exec`. This section must:
+Every plan includes a **Codex Prompt** section:
 
-- Be in **English** (Codex works best with English)
-- Include SOLID + SRP requirements inline
-- Reference relevant palbox files
-- List exact files to touch
-- Include acceptance criteria
-
-Format:
 ```markdown
 ## Codex Prompt
 
-[Self-contained prompt in English that includes task + context + SOLID/SRP rules + files + verification]
+[Self-contained prompt in English]
+
+Context from palbox:
+- Architecture: [[architecture]] → auth module in src/auth/, uses Repository pattern
+- Methods: [[methods]] → JWT with refresh tokens, pytest for testing
+- Past work: [[history/2026-07-10-jwt-refresh]] → existing refresh rotation logic
+
+Task: [what to build]
+SOLID + SRP requirements: [enforced]
+Files: [list]
+Verification: [criteria]
 ```
 
 ## Rules
 
-1. **Never skip questions** — if anything is ambiguous, ask
-2. **Plan before code** — do not start development until user says "Gas"
-3. **Save plans to `.palbox/plans/`** — Panthalus will archive them later
-4. **Respect palbox conventions** — plans must align with architecture.md and methods.md
-5. **One plan per feature** — don't mix unrelated features
-6. **Keep plans actionable** — each task should be completable in one Codex session
-7. **Always include Codex Prompt section** — Anubis needs it to delegate to Codex
+1. **Never skip questions** — ambiguous = ask
+2. **Plan before code** — wait for "Gas"
+3. **Save to `.palbox/plans/`** with `[[wikilinks]]` to context
+4. **Respect the graph** — plans align with linked architecture/methods
+5. **One plan per feature**
+6. **Always include Codex Prompt** — Anubis needs it
+7. **Link context, don't repeat** — use `[[wikilinks]]` instead of copy-pasting

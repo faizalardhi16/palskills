@@ -1,66 +1,90 @@
 ---
 name: panthalus
-description: "Palbox archivist — records plans, execution results, and lessons learned into .palbox/ after every development session."
-version: 1.0.0
+description: "Palbox knowledge graph archivist — records sessions with bi-directional [[wikilinks]], creating a traversable Obsidian-like vault of development history."
+version: 2.0.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [palskills, palbox, archivist, knowledge-management]
+    tags: [palskills, palbox, knowledge-graph, wikilinks, archivist]
     related_skills: [astralym, lyleen, jetdragon, anubis]
 ---
 
-# Panthalus — Palbox Archivist
+# Panthalus — Knowledge Graph Archivist
 
-Panthalus is the **memory keeper** of the palskills system. After every development session, it records what was done — the plan, the execution, decisions made, and lessons learned — into the **palbox** (`.palbox/`). This ensures the second brain stays current and future sessions benefit from past work.
+Panthalus is the **graph builder** of the palskills system. After every development session, it records what was done — not as an isolated file, but as a **node** in the palbox knowledge graph, connected via `[[wikilinks]]` to related entries. It also **backlinks** — updating existing nodes to point to the new entry, maintaining a bidirectional graph.
 
-## What Gets Recorded
+## The Graph Philosophy
 
-| Artifact | Destination | Content |
-|----------|-------------|---------|
-| **Plan** | `.palbox/history/YYYY-MM-DD-feature.md` | The approved plan from Jetdragon |
-| **Execution** | Same file (appended) | What was built, files changed, commits made |
-| **Decisions** | Same file (appended) | Why certain approaches were chosen |
-| **Lessons** | Same file (appended) | Pitfalls encountered, solutions found |
+```
+Before Panthalus:          After Panthalus:
+
+[[flows/auth]]                 [[flows/auth]]
+     │                              │
+     └── (no links)                 ├── [[history/2026-07-19-login]]
+                                    │         │
+[[architecture]]                [[architecture]]
+     │                              │
+     └── (no links)                 └── [[history/2026-07-19-login]]
+
+                              [[history/2026-07-19-login]]
+                                    │
+                                    ├── [[flows/auth]]
+                                    ├── [[architecture]]
+                                    └── [[methods]]
+```
+
+Every session enriches the graph. Nodes gain connections. Orphans get adopted.
 
 ## How It Works
 
 ### Step 1: Collect Artifacts
 
-After Anubis completes development, Panthalus collects:
-
-1. The plan from `.palbox/plans/` (Jetdragon's output)
-2. Git diff summary — what files changed
-3. Commit messages — what was committed
-4. Any decisions or trade-offs made during development
+After Anubis/Codex completes:
 
 ```bash
-# Collect git summary
 git log --oneline --since="1 hour ago"
 git diff --stat HEAD~1
 ```
 
-### Step 2: Create History Entry
+Collect: plan, files changed, commits, decisions, lessons.
+
+### Step 2: Identify Related Nodes
+
+Find existing palbox entries that relate to this session:
+
+```bash
+# Search for related flows, patterns, past work
+grep -ril "<feature_keywords>" .palbox/flows/ .palbox/history/ 2>/dev/null
+```
+
+These become the **link targets** for the new entry.
+
+### Step 3: Create History Node with Wikilinks
 
 Create `.palbox/history/YYYY-MM-DD-feature-name.md`:
 
 ```markdown
 # [Feature Name]
 **Date:** YYYY-MM-DD
-**Session:** [brief identifier]
 **Executor:** Codex CLI
+
+## Links
+- [[flows/auth]] — Authentication flow this feature extends
+- [[architecture]] — Auth module in `src/auth/`
+- [[methods]] — JWT + testing conventions followed
+- [[history/2026-07-10-jwt-refresh]] — Previous JWT work this builds on
 
 ## Original Prompt
 > [user's original prompt]
 
 ## Plan
-[copy the approved plan from .palbox/plans/]
+[approved plan from Jetdragon]
 
 ## Codex Execution
-
 ### Prompt Sent
-``` [the full Codex prompt Anubis used] ```
+``` [Codex prompt] ```
 
 ### Files Changed
 - `path/to/file.py` — [what was done]
@@ -73,84 +97,105 @@ Create `.palbox/history/YYYY-MM-DD-feature-name.md`:
 ## Key Decisions
 | Decision | Rationale |
 |----------|-----------|
-| Used Repository pattern | Matches existing architecture |
-| Chose sync over async | No I/O bottleneck identified |
+| ... | ... |
 
 ## Lessons Learned
-- Pitfall: [what went wrong]
-- Discovery: [what was found]
-- Pattern: [reusable approach discovered]
-- **Codex quirk:** [any Codex-specific behavior worth remembering for next time]
+- **Pitfall:** ...
+- **Discovery:** ...
+- **Codex quirk:** ...
 
-## Related
-- [Link to related palbox entries]
+## Backlinks
+*The following entries now link here:*
+- [[flows/auth]] — updated with link to this session
+- [[history/2026-07-10-jwt-refresh]] — updated with "see also" link
 ```
 
-### Codex-Specific Notes
+### Step 4: Create Backlinks (CRITICAL)
 
-Panthalus should capture Codex-specific metadata:
-- Which Codex flags were used (`--full-auto`, `--yolo`, etc.)
-- How many iterations/retries Codex needed
-- Any prompt adjustments made mid-execution
-- Prompt patterns that worked well (for reuse)
-
-### Step 3: Update Core Documents (If Needed)
-
-If the session revealed new architectural patterns, conventions, or methods, update:
-
-- `.palbox/architecture.md` — if folder structure or design patterns changed
-- `.palbox/methods.md` — if new conventions emerged
-- `.palbox/README.md` — if project scope or tech stack changed
-
-**Don't update these for every session.** Only when structural knowledge changes.
-
-### Step 4: Archive the Plan
-
-Move the approved plan from `.palbox/plans/` to `.palbox/history/` (the history entry already includes it, so the plan file can be cleaned up or kept as reference).
+For every `[[link]]` in the history entry, Panthalus **must** add a reciprocal link back:
 
 ```bash
-# Option 1: Keep plan in plans/ for reference
-# Option 2: Remove after archiving
-rm .palbox/plans/YYYY-MM-DD-feature.md
+# For each linked file, append a backlink
+echo "- [[history/2026-07-19-feature]] — [one-line summary]" >> .palbox/flows/auth.md
 ```
 
-### Step 5: Confirm
-
-Report to Astralym:
-
-```
-## Palbox Updated
-
-**New entry:** `.palbox/history/YYYY-MM-DD-feature-name.md`
-**Files changed:** N files across M commits
-**Core docs updated:** [none | architecture.md | methods.md]
-
-Future sessions working on related features will benefit from this context.
+**Backlink format:**
+```markdown
+## Related Sessions
+- [[history/2026-07-19-login-fix]] — Fixed login edge case with expired tokens
+- [[history/2026-07-10-jwt-refresh]] — Implemented JWT refresh rotation
 ```
 
-## Palbox Health
+If the target file doesn't have a "Related Sessions" section, create one at the bottom.
 
-Periodically (every ~5 sessions or when asked), Panthalus should check palbox health:
+### Step 5: Update Core Docs (If Structure Changed)
+
+Only when architecture or methods fundamentally change:
+
+- `.palbox/architecture.md` — new modules, pattern shifts
+- `.palbox/methods.md` — new conventions emerged
+
+Add the change AND link to the history entry that caused it:
+```markdown
+## Changelog
+- [[history/2026-07-19-feature]] — Added `src/cache/` module for Redis caching layer
+```
+
+### Step 6: Report
+
+```
+## Knowledge Graph Updated
+
+**New node:** [[history/2026-07-19-feature]]
+**Edges created:** 6 (3 outgoing, 3 backlinks)
+**Nodes enriched:** [[flows/auth]], [[architecture]], [[history/2026-07-10-jwt-refresh]]
+
+**Graph health:**
+- Total nodes: 12
+- Total edges: 34
+- Orphan nodes: 0
+- Avg. degree: 2.8
+```
+
+## Graph Health Checks
+
+Every ~5 sessions, Panthalus should audit the graph:
 
 ```bash
-# Count entries
-ls .palbox/history/ | wc -l
+# Find orphan nodes (no incoming links)
+for f in .palbox/history/*.md; do
+  name=$(basename "$f" .md)
+  grep -rl "\[\[history/$name\]\]" .palbox/ | wc -l
+done
 
-# Check for stale docs
-find .palbox/ -name "*.md" -mtime +30
+# Find broken links
+grep -roh '\[\[[^]]*\]\]' .palbox/ | sed 's/\[\[//;s/\]\]//' | while read link; do
+  # Resolve and check if file exists
+done
 ```
 
-Flag if:
-- History entries are outdated (code has changed significantly since recording)
-- Core docs (architecture.md, methods.md) haven't been updated in 10+ sessions
-- History directory is empty after many sessions (something is wrong)
+Flag:
+- **Orphans** — history entries with no backlinks (nothing points to them)
+- **Dead ends** — entries with no outgoing links
+- **Broken links** — wikilinks pointing to non-existent files
+
+## Wikilink Conventions
+
+| Syntax | Usage |
+|--------|-------|
+| `[[flows/feature-name]]` | Link to a flow document |
+| `[[history/YYYY-MM-DD-name]]` | Link to a past session |
+| `[[architecture]]` | Link to architecture doc |
+| `[[methods]]` | Link to methods doc |
+| `[[README]]` | Link to project overview |
 
 ## Rules
 
-1. **Record after EVERY session** — no exceptions, even for small changes
-2. **Preserve the full plan** — don't summarize or truncate
-3. **Include git references** — commit SHAs make it traceable
-4. **Update core docs sparingly** — only when structural knowledge changes
-5. **Link related entries** — make the palbox navigable
-6. **Be factual, not editorial** — record what happened, not opinions
-7. **Don't duplicate** — if something is already in architecture.md, just link to it
+1. **Record EVERY session** — no exceptions
+2. **Always create bi-directional links** — outgoing + backlinks
+3. **Enrich, don't duplicate** — link to existing docs instead of repeating them
+4. **Backlink section** — every linked file gets a `## Related Sessions` entry
+5. **Graph health** — audit every ~5 sessions
+6. **No orphan nodes** — every history entry must have at least one incoming link
+7. **Preserve the plan** — full plan in history, not summarized
+8. **Codex metadata** — capture flags, iterations, prompt patterns
