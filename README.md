@@ -70,19 +70,19 @@ palskills
 ║     AI Development Pipeline          ║
 ╚══════════════════════════════════════╝
 
-  Pilih coding agent:
+  Select coding agent:
 
   [1] Codex CLI     → .codex.md
   [2] Cursor        → .cursorrules
   [3] Claude Code   → CLAUDE.md
-  [4] Semua         → generate all
+  [4] All           → generate all
 
-  Pilih [1-4]:
+  Choose [1-4]:
 ```
 
-Pilih agent, langsung generate config file dengan SOLID + SRP rules + palbox conventions.
+Select an agent to instantly generate its config file with SOLID + SRP rules + palbox knowledge graph conventions.
 
-### One-shot (tanpa install)
+### One-shot (without installing)
 ```bash
 npx palskills
 ```

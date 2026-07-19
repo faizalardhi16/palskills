@@ -29,15 +29,15 @@ async function main() {
   box('PALSKILLS\nAI Development Pipeline');
 
   console.log('');
-  console.log(`  ${BOLD}Pilih coding agent:${NC}`);
+  console.log(`  ${BOLD}Select coding agent:${NC}`);
   console.log('');
   console.log(`  ${MAGENTA}[1]${NC} Codex CLI     → .codex.md`);
   console.log(`  ${MAGENTA}[2]${NC} Cursor        → .cursorrules`);
   console.log(`  ${MAGENTA}[3]${NC} Claude Code   → CLAUDE.md`);
-  console.log(`  ${MAGENTA}[4]${NC} Semua         → generate all`);
+  console.log(`  ${MAGENTA}[4]${NC} All           → generate all`);
   console.log('');
 
-  const choice = await ask(`  Pilih [1-4]: `);
+  const choice = await ask(`  Choose [1-4]: `);
   console.log('');
 
   const agents = [];
@@ -45,7 +45,7 @@ async function main() {
   else if (choice === '2') agents.push('cursor');
   else if (choice === '3') agents.push('claude');
   else if (choice === '4') agents.push('codex', 'cursor', 'claude');
-  else { console.log('  Pilihan tidak valid. Exit.'); process.exit(1); }
+  else { console.log('  Invalid choice. Exiting.'); process.exit(1); }
 
   for (const agent of agents) {
     generate(agent);
@@ -54,7 +54,7 @@ async function main() {
   // Also install Hermes skills
   installSkills();
 
-  console.log(`\n  ${GREEN}✅ Done!${NC} Restart Hermes Agent untuk load skills.\n`);
+  console.log(`\n  ${GREEN}✅ Done!${NC} Restart Hermes Agent to load skills.\n`);
 }
 
 function generate(agent) {
