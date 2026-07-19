@@ -109,9 +109,22 @@ ALL code, comments, docstrings, variable names, and commit messages MUST be in E
 - One commit per logical change.
 - Conventional commits: feat(scope): description / fix(scope): description / test(scope): description
 
-## Palbox
-- Check .palbox/ for project context before starting.
-- Record results to .palbox/history/ after completion.
+## Palbox Knowledge Graph (CRITICAL)
+### Before you start ANY task
+1. **Check if `.palbox/` exists.** If not, the project hasn't been bootstrapped yet.
+2. **Read the core nodes:**
+   - `.palbox/README.md` — project identity, tech stack, goals
+   - `.palbox/architecture.md` — folder structure, design patterns, key modules
+   - `.palbox/methods.md` — coding conventions, testing strategy, git workflow
+3. **Search for related past work:**
+   - Search for keywords in `.palbox/flows/` and `.palbox/history/`
+   - Follow `[[wikilinks]]` to discover connected context
+4. **Read relevant flows** in `.palbox/flows/` — they document how features work end-to-end
+5. **Read relevant history** in `.palbox/history/` — past plans, executions, lessons learned
+
+### After you complete a task
+- Record what you did. The Palskills system (Panthalus) will create a `.palbox/history/YYYY-MM-DD-feature.md` node with `[[wikilinks]]` to related entries.
+- If you discovered new patterns, conventions, or pitfalls, note them — they enrich the graph.
 `;
 }
 
@@ -144,10 +157,17 @@ ALL code, comments, docs, variable names, and commit messages MUST be in English
 - One commit per logical change
 - Conventional commits format: feat(scope): / fix(scope): / test(scope):
 
-### Project Context
-- Check .palbox/ for architecture, conventions, and past work.
-- Read .palbox/README.md, .palbox/architecture.md, .palbox/methods.md before coding.
-- After completing work, the Palskills system will record to .palbox/history/.
+### Project Context — Palbox Knowledge Graph
+Before you start ANY task:
+1. **Check if `.palbox/` exists.** Read the core nodes:
+   - `.palbox/README.md` — project identity, stack, goals
+   - `.palbox/architecture.md` — folder structure, patterns, key modules
+   - `.palbox/methods.md` — conventions, testing, git workflow
+2. **Search `.palbox/flows/` and `.palbox/history/`** for related past work.
+3. **Follow `[[wikilinks]]`** — they connect related nodes in the knowledge graph.
+
+After completing work:
+- The Palskills system (Panthalus) records to `.palbox/history/` with bi-directional links.
 
 ### Code Quality
 - No file exceeds 200 lines without strong justification.
@@ -197,16 +217,18 @@ ALL code, comments, docstrings, variable names, function names, and commit messa
 - Conventional commits: feat(scope): / fix(scope): / test(scope):
 - Never commit generated files, node_modules, or secrets.
 
-## Project Context (Palbox)
+## Project Context — Palbox Knowledge Graph
 Before starting any task:
-1. Check if .palbox/ exists.
-2. Read .palbox/README.md for project overview.
-3. Read .palbox/architecture.md for folder structure and patterns.
-4. Read .palbox/methods.md for conventions.
-5. Search .palbox/history/ for related past work.
+1. Check if `.palbox/` exists. Read the core nodes:
+   - `.palbox/README.md` — project identity, stack, goals
+   - `.palbox/architecture.md` — folder structure, patterns, key modules
+   - `.palbox/methods.md` — conventions, testing, git workflow
+2. Search `.palbox/flows/` and `.palbox/history/` for related past work.
+3. Follow `[[wikilinks]]` — they connect related nodes in the knowledge graph.
 
 After completing work:
-- The Palskills system will record your session to .palbox/history/.
+- The Palskills system (Panthalus) records your session to `.palbox/history/` with bi-directional `[[wikilinks]]`.
+- If you discovered patterns, pitfalls, or conventions worth preserving, note them.
 `;
 }
 
