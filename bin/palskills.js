@@ -32,9 +32,9 @@ async function main() {
   console.log(`  ${BOLD}What do you want to do?${NC}`);
   console.log('');
   console.log(`  ${MAGENTA}[1]${NC} Learn Project   → bootstrap .palbox/ (Lyleen)`);
-  console.log(`  ${MAGENTA}[2]${NC} Codex CLI       → .codex.md`);
-  console.log(`  ${MAGENTA}[3]${NC} Cursor          → .cursorrules`);
-  console.log(`  ${MAGENTA}[4]${NC} Claude Code     → CLAUDE.md`);
+  console.log(`  ${MAGENTA}[2]${NC} Codex CLI       → .codex/skills/`);
+  console.log(`  ${MAGENTA}[3]${NC} Cursor          → .cursor/skills/`);
+  console.log(`  ${MAGENTA}[4]${NC} Claude Code     → .claude/skills/`);
   console.log(`  ${MAGENTA}[5]${NC} All Agents      → generate all configs`);
   console.log('');
 
@@ -239,181 +239,124 @@ ${gitContributors ? `\n**Top Contributors:**\n\`\`\`\n${gitContributors}\n\`\`\`
 
 function generate(agent) {
   const cwd = process.cwd();
+  const skillNames = ['lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym'];
 
-  if (agent === 'codex') {
-    const file = path.join(cwd, '.codex.md');
-    fs.writeFileSync(file, codexRules());
-    console.log(`  ${GREEN}✓${NC} .codex.md`);
-  }
+  let dir;
+  if (agent === 'codex') dir = path.join(cwd, '.codex', 'skills');
+  else if (agent === 'cursor') dir = path.join(cwd, '.cursor', 'skills');
+  else if (agent === 'claude') dir = path.join(cwd, '.claude', 'skills');
 
-  if (agent === 'cursor') {
-    const file = path.join(cwd, '.cursorrules');
-    fs.writeFileSync(file, cursorRules());
-    console.log(`  ${GREEN}✓${NC} .cursorrules`);
-  }
+  fs.mkdirSync(dir, { recursive: true });
 
-  if (agent === 'claude') {
-    const file = path.join(cwd, 'CLAUDE.md');
-    fs.writeFileSync(file, claudeRules());
-    console.log(`  ${GREEN}✓${NC} CLAUDE.md`);
+  for (const name of skillNames) {
+    const file = path.join(dir, `${name}.md`);
+    fs.writeFileSync(file, skillContent(agent, name));
+    console.log(`  ${GREEN}✓${NC} ${dir}/${name}.md`);
   }
 }
 
-function codexRules() {
-  return palskillsAgentConfig('Codex');
-}
+function skillContent(agent, skill) {
+  const skills = {
+    lyleen: `# Lyleen — Palbox Knowledge Graph
+**Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
-function cursorRules() {
-  return palskillsAgentConfig('Cursor');
-}
+## Role
+Read and bootstrap the project knowledge graph (.palbox/).
 
-function claudeRules() {
-  return palskillsAgentConfig('Claude Code');
-}
+## If .palbox/ does NOT exist — BOOTSTRAP:
+1. Scan project: read package.json/requirements.txt/go.mod, list dirs, check git log, find tests
+2. Create .palbox/README.md — project name, tech stack, goals, [[links]]
+3. Create .palbox/architecture.md — folder tree, design patterns, key modules
+4. Create .palbox/methods.md — conventions, testing, git workflow
+5. Create .palbox/flows/, .palbox/history/, .palbox/plans/
+6. Report: "Palbox bootstrapped. N files. Detected: [stack]."
 
-function palskillsAgentConfig(agentName) {
-  return `# Palskills — Multi-Mode AI Development System
-# Generated for ${agentName}
-#
-# HOW TO USE: Start your prompt with the skill name.
-#   "Lyleen: learn the ftz export module"
-#   "Jetdragon: plan a forgot-password feature"
-#   "Anubis: implement the approved plan"
-#   "Panthalus: record this session"
-#
-# Or let Astralym orchestrate the full flow:
-#   "Astralym: build a user dashboard"
+## If .palbox/ EXISTS — RETRIEVE:
+1. Read README.md, architecture.md, methods.md
+2. Search flows/ and history/ for user keywords
+3. Extract [[wikilinks]], follow 1-2 hops
+4. Return context subgraph: seeds → 1-hop → 2-hop → conventions
+`,
+    jetdragon: `# Jetdragon — Planner
+**Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
----
+## Role
+Create detailed implementation plans. Ask questions until clear.
 
-## SKILL MODES
+## Process
+1. Gather palbox context (read core docs, search related history)
+2. Generate plan → .palbox/plans/YYYY-MM-DD-feature.md with [[wikilinks]]
+3. If ambiguous, ASK: scope, design, edge cases, integration, priority
+4. Iterate until user says "Gas", "Go", "Execute"
+5. Finalize as APPROVED, hand off to Anubis
 
-You are an AI coding agent with **5 selectable skill modes**. When the user starts a prompt with a skill name followed by a colon, activate that mode immediately.
+## Plan Template
+- Overview, Scope (in/out), Tasks (ordered, with files + verification)
+- Architecture notes, SOLID focus, Risks & Mitigations
+- All references use [[wikilinks]] to .palbox/ entries
+`,
+    anubis: `# Anubis — Developer
+**Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
----
+## Role
+Execute approved plans. SOLID + SRP enforced. English only.
 
-### LYLEEN — Palbox Knowledge Graph
-**Trigger:** Prompt starts with "Lyleen:" or "lyleen:"
-**Role:** Read and bootstrap the project knowledge graph.
+## SOLID (Strict)
+- **S**: One class, one reason to change
+- **O**: Extend, never modify existing
+- **L**: Subtypes fully substitutable
+- **I**: Small focused interfaces
+- **D**: Depend on abstractions, inject deps
 
-#### If .palbox/ does NOT exist — BOOTSTRAP:
-1. Scan the project structure:
-   - Read package.json / requirements.txt / go.mod / Cargo.toml to detect tech stack
-   - List top-level directories (skip .git, node_modules, __pycache__)
-   - Read existing README.md if present
-   - Check git log for contributors and recent activity
-   - Find testing patterns (files matching *test*, *spec*)
-2. Create .palbox/ with this structure:
-   - .palbox/README.md — project name, tech stack, goals, quick start, knowledge graph links
-   - .palbox/architecture.md — folder structure tree, design patterns, key modules table, data flow
-   - .palbox/methods.md — coding conventions, testing strategy, git workflow, code review standards
-3. Create subdirectories: flows/, history/, plans/
-4. Every .md file MUST include wikilinks ([[other-file]]) to connect the graph
-5. Report: "Palbox bootstrapped. N files analyzed. Detected: [tech stack]."
+## SRP Separation
+- Repository → data access ONLY
+- Service → business logic ONLY
+- Validator → validation rules ONLY
+- Model → data structures ONLY
 
-#### If .palbox/ EXISTS — CONTEXT RETRIEVAL:
-1. Read .palbox/README.md, .palbox/architecture.md, .palbox/methods.md
-2. Search .palbox/flows/ and .palbox/history/ for keywords in the user query
-3. Extract all [[wikilinks]] from matching files. Follow them 1-2 hops deep.
-4. Return a "Context Subgraph" summary:
-   - Seed nodes (direct matches)
-   - 1-hop neighbors (linked context)
-   - 2-hop neighbors (extended context)
-   - Relevant conventions and past decisions
-5. If nothing relevant found, say so clearly.
+## Rules
+- ALL code, comments, docstrings, commits in English
+- One commit per logical change (conventional commits)
+- Read existing files before modifying
+- Write tests if project has testing patterns
+`,
+    panthalus: `# Panthalus — Archivist
+**Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
----
+## Role
+Record sessions to .palbox/ with bi-directional [[wikilinks]].
 
-### JETDRAGON — Planner
-**Trigger:** Prompt starts with "Jetdragon:" or "jetdragon:"
-**Role:** Create detailed, actionable implementation plans. Ask questions until the plan is crystal clear.
+## Process
+1. Collect: plan, git diff, commits, decisions, lessons
+2. Create .palbox/history/YYYY-MM-DD-feature.md with [[wikilinks]]
+3. For EVERY link, add backlink to the target file ("Related Sessions")
+4. Update core docs (architecture/methods) only if structure changed
+5. Report graph stats: nodes, edges, enriched
 
-1. First, act like Lyleen to gather palbox context (read core docs, search for related work)
-2. Generate a plan saved to .palbox/plans/YYYY-MM-DD-feature-name.md:
-   - Overview (2-3 sentences)
-   - Scope: in scope / out of scope
-   - Tasks ordered by dependency, each with: what, files to touch, verification steps
-   - Architecture notes: patterns to use, SOLID focus
-   - Risks and mitigations
-   - Use [[wikilinks]] to reference .palbox/ entries
-3. If ANYTHING is ambiguous, ASK the user:
-   - Scope: "Should this also handle X?"
-   - Design: "Class-based or functional?"
-   - Edge cases: "What happens when input is empty?"
-   - Integration: "Does this touch the existing auth module?"
-   - Priority: "Which task first?"
-4. Iterate: user responds → update plan → ask more → repeat
-5. When the user says "Gas", "Go", "Execute", or "Approved":
-   - Update status to APPROVED
-   - Output: "Plan approved. Ready for Anubis."
-   - Include the full plan for the next step
+## History Entry Template
+- Links ([[flows/]], [[architecture]], [[history/]])
+- Original prompt, Plan, Execution (files + commits)
+- Key Decisions table, Lessons Learned (pitfalls, discoveries)
+- Backlinks section
+`,
+    astralym: `# Astralym — Orchestrator
+**Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
----
+## Role
+Run the full development pipeline automatically.
 
-### ANUBIS — Developer
-**Trigger:** Prompt starts with "Anubis:" or "anubis:"
-**Role:** Execute an approved plan following SOLID + SRP. All code in English.
+## Pipeline
+1. **CHECK_GRAPH** → Lyleen: bootstrap or retrieve context
+2. **PLANNING** → Jetdragon: create plan, ask questions, wait for "Gas"
+3. **DEVELOPING** → Anubis: execute with SOLID + SRP
+4. **RECORDING** → Panthalus: record with backlinks
+5. **DONE** → Summary with graph stats
 
-1. Read the approved plan from .palbox/plans/ or from the provided context
-2. Execute task by task, in order:
-   - Read existing files before modifying
-   - Write code following SOLID + SRP
-   - Write tests if the project has testing patterns
-   - Verify acceptance criteria
-3. **SOLID (strict):**
-   - Single Responsibility: one class, one reason to change
-   - Open/Closed: extend, never modify existing
-   - Liskov Substitution: subtypes fully substitutable
-   - Interface Segregation: small focused interfaces
-   - Dependency Inversion: depend on abstractions, inject deps
-4. **SRP Separation:**
-   - Repository → data access ONLY
-   - Service → business logic ONLY
-   - Validator → validation rules ONLY
-   - Model → data structures ONLY
-   - If a class mixes these, REFACTOR immediately
-5. **Language:** ALL code, comments, docstrings, variable names, and commit messages MUST be in English
-6. **Git:** one commit per logical change. Conventional commits format
-7. After all tasks complete, output a summary: files changed, commits made, verification results
-
----
-
-### PANTHALUS — Archivist
-**Trigger:** Prompt starts with "Panthalus:" or "panthalus:"
-**Role:** Record the session to the .palbox/ knowledge graph with bi-directional links.
-
-1. Collect artifacts: the plan, git diff summary, commit messages, decisions made
-2. Create .palbox/history/YYYY-MM-DD-feature-name.md:
-   - Links section with [[wikilinks]] to related entries (flows, architecture, past history)
-   - Original prompt
-   - Plan (full, not summarized)
-   - Execution: files changed, commits
-   - Key decisions table
-   - Lessons learned (pitfalls, discoveries, patterns)
-3. **Create backlinks:** For EVERY [[wikilink]] in the history entry, go to that file and add a reference back:
-   - Add "## Related Sessions" section if it does not exist
-   - Append "- [[history/YYYY-MM-DD-feature]] — [one-line summary]"
-4. Update core docs only if structural knowledge changed (new modules, new conventions)
-5. Report graph stats: new node, edges created, nodes enriched, total nodes/edges
-
----
-
-### ASTRALYM — Orchestrator
-**Trigger:** Prompt starts with "Astralym:" or "astralym:"
-**Role:** Run the full development pipeline automatically.
-
-1. **CHECK_GRAPH** — Act as Lyleen: bootstrap .palbox/ if missing, or retrieve context subgraph
-2. **PLANNING** — Act as Jetdragon: create plan, ask clarifying questions, wait for "Gas"
-3. **DEVELOPING** — Act as Anubis: execute the approved plan with SOLID + SRP
-4. **RECORDING** — Act as Panthalus: record everything to .palbox/ with backlinks
-5. **DONE** — Report summary with graph stats
-
----
-
-## DEFAULT MODE
-
-When no specific skill is triggered, act as **Anubis** by default — write code following SOLID + SRP, all output in English. Before starting any task, quickly check .palbox/ for relevant context (like Lyleen, but minimal — 30 seconds max).
-`;
+## Usage
+User says "Astralym: build feature X" → full pipeline runs.
+`
+  };
+  return skills[skill] || '';
 }
 
 function installSkills() {
