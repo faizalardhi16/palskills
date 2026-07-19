@@ -9,9 +9,10 @@
 | Skill | Role | Key Trait |
 |-------|------|-----------|
 | **Astralym** | Orchestrator | Runs the full pipeline, tracks progress in `state.md` |
+| **Elphidran** | Design Architect | Generates `.palbox/design.md` — colors, typography, spacing |
 | **Lyleen** | Knowledge Graph | Bootstraps `.palbox/` or traverses `[[wikilinks]]` for context |
 | **Jetdragon** | Planner | Asks clarifying questions, generates detailed plans |
-| **Anubis** | Developer | SOLID + SRP enforced, English only |
+| **Anubis** | Developer | SOLID + SRP enforced, English only, reads design tokens |
 | **Panthalus** | Archivist | Records every session with bi-directional `[[wikilinks]]` |
 
 ## Prerequisites
@@ -75,8 +76,9 @@ Astralym runs all 5 steps: learns the codebase → plans with your input → exe
 | Prompt | What happens |
 |--------|-------------|
 | `Lyleen: learn the auth module` | Reads or bootstraps `.palbox/`, returns relevant context |
+| `Elphidran: design the app` | Asks about vibe/industry → generates `.palbox/design.md` |
 | `Jetdragon: plan a forgot-password feature` | Creates `.palbox/plans/` plan, asks clarifying questions. Say **"Gas"** when ready |
-| `Anubis: implement the approved plan` | Executes the plan with SOLID + SRP, all code in English |
+| `Anubis: implement the approved plan` | Executes the plan with SOLID + SRP + design tokens, all code in English |
 | `Panthalus: record this session` | Saves to `.palbox/history/` with bi-directional `[[wikilinks]]` |
 
 ### Flow
@@ -94,6 +96,7 @@ The `.palbox/` knowledge graph grows with every session:
 ├── state.md            # Pipeline progress tracker
 ├── README.md           # Project identity & tech stack
 ├── architecture.md     # Folder map & design patterns
+├── design.md           # Design system (colors, typography, spacing)
 ├── methods.md          # Conventions & standards
 ├── flows/              # Feature workflow docs
 ├── plans/              # Active plans
