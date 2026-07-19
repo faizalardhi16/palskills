@@ -43,7 +43,6 @@ async function main() {
 
   if (choice === '1') {
     bootstrapPalbox();
-    installSkills();
     console.log(`\n  ${GREEN}✅ Done!${NC} .palbox/ created. Run again to generate agent configs.\n`);
     process.exit(0);
   }
@@ -58,9 +57,6 @@ async function main() {
   for (const agent of agents) {
     generate(agent);
   }
-
-  // Also install Hermes skills
-  installSkills();
 
   console.log(`\n  ${GREEN}✅ Done!${NC} Restart your Agent Tools to load skills.\n`);
 }
