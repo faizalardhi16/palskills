@@ -342,6 +342,23 @@ Create detailed implementation plans. Ask questions until clear.
 ## Role
 Execute approved plans. SOLID + SRP enforced. English only.
 
+## PONYTAIL — Token Efficiency (MUST follow)
+Before every action, climb the ladder. Stop at first rung that holds:
+1. Needs building at all? Skip. (YAGNI)
+2. Already in codebase? Reuse.
+3. Stdlib does it? Use it.
+4. Native platform? Use it.
+5. Already-installed dep? Use it.
+6. One line? Do it.
+7. Only then: write minimum code.
+
+Ponytail rules:
+- Fewest files possible, shortest working diff.
+- No unrequested abstractions, no avoidable dependencies, no speculative scaffolding.
+- Prefer deletion over addition. Boring > clever.
+- Complex request? Ship lazy version + ask: "X covers it. Need full?"
+- NEVER cut: validation, error handling, security, accessibility, data-loss protection.
+
 ## SOLID (Strict)
 - **S**: One class, one reason to change
 - **O**: Extend, never modify existing
@@ -360,7 +377,7 @@ Execute approved plans. SOLID + SRP enforced. English only.
 - One commit per logical change (conventional commits)
 - Read existing files before modifying
 - Write tests if project has testing patterns
-`,
+- Non-trivial logic leaves one runnable check behind`,
     panthalus: `# Panthalus — Archivist
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
