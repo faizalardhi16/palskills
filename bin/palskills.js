@@ -343,7 +343,7 @@ Record sessions to .palbox/ with bi-directional [[wikilinks]].
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
 ## Role
-Run the full development pipeline automatically.
+Run the full development pipeline. Track every step in .palbox/state.md.
 
 ## Pipeline
 1. **CHECK_GRAPH** → Lyleen: bootstrap or retrieve context
@@ -352,9 +352,71 @@ Run the full development pipeline automatically.
 4. **RECORDING** → Panthalus: record with backlinks
 5. **DONE** → Summary with graph stats
 
+## CRITICAL: state.md
+
+ON LOAD: Create or read .palbox/state.md. This file tracks pipeline progress with checkboxes.
+
+### state.md Template
+Create this file IMMEDIATELY when Astralym is activated:
+
+\`\`\`markdown
+# Astralym Pipeline State
+**Feature:** [extract from user prompt]
+**Started:** [current datetime]
+**Last Updated:** [current datetime]
+
+## Progress
+- [ ] CHECK_GRAPH — Lyleen: bootstrap or retrieve context
+- [ ] PLANNING — Jetdragon: create plan, ask questions
+- [ ] DEVELOPING — Anubis: execute with SOLID + SRP
+- [ ] RECORDING — Panthalus: record with backlinks
+- [ ] DONE — Report summary
+
+## Plan
+pending
+
+## Context
+pending
+\`\`\`
+
+### Rules for state.md
+1. **Create BEFORE running any step.** The file must exist from the start.
+2. **Checkmark [x] each step IMMEDIATELY after completion.** Do not batch.
+3. **Add notes after each step:**
+   - CHECK_GRAPH: "Retrieved [N] relevant nodes" or "Bootstrapped palbox"
+   - PLANNING: Link to plan file: [[plans/YYYY-MM-DD-feature]]
+   - DEVELOPING: "Implemented: [files changed], [N] commits"
+   - RECORDING: Link to history: [[history/YYYY-MM-DD-feature]]
+   - DONE: "Completed at [datetime]. [N] files, [M] commits."
+4. **If a step fails or is interrupted,** mark it with [!] and note why.
+5. **Update "Last Updated"** every time you touch the file.
+6. **On resume:** Read state.md first. Skip completed steps. Continue from first unchecked.
+
+### Example After Completion
+\`\`\`markdown
+# Astralym Pipeline State
+**Feature:** Export Laporan PDF
+**Started:** 2026-07-19 16:30
+**Last Updated:** 2026-07-19 17:15
+
+## Progress
+- [x] CHECK_GRAPH — Lyleen: Retrieved 3 nodes ([[flows/export]], [[architecture]], [[methods]])
+- [x] PLANNING — Jetdragon: [[plans/2026-07-19-export-pdf]]
+- [x] DEVELOPING — Anubis: src/export/pdf.py, src/export/templates/, 4 commits
+- [x] RECORDING — Panthalus: [[history/2026-07-19-export-pdf]]
+- [x] DONE — Completed at 2026-07-19 17:15. 3 files, 4 commits.
+
+## Plan
+[[plans/2026-07-19-export-pdf]]
+
+## Context
+- [[flows/export]] — existing export pipeline
+- [[architecture]] — module structure
+- [[methods]] — testing conventions
+\`\`\`
+
 ## Usage
-User says "Astralym: build feature X" → full pipeline runs.
-`
+User says "Astralym: build feature X" → create state.md → run pipeline step by step → checkmark progress.`
   };
   return skills[skill] || '';
 }
