@@ -48,9 +48,6 @@ User Prompt
 ```bash
 npm install -g palskills
 # Skills auto-installed to ~/.hermes/skills/palskills/
-
-# Or one-shot without installing:
-npx palskills
 ```
 
 ### Git
@@ -60,10 +57,34 @@ cd palskills
 ./install.sh
 ```
 
-Or manually:
+## Usage
 
+### Interactive CLI
 ```bash
-cp -r skills/* ~/.hermes/skills/palskills/
+palskills
+```
+
+```
+╔══════════════════════════════════════╗
+║           PALSKILLS                  ║
+║     AI Development Pipeline          ║
+╚══════════════════════════════════════╝
+
+  Pilih coding agent:
+
+  [1] Codex CLI     → .codex.md
+  [2] Cursor        → .cursorrules
+  [3] Claude Code   → CLAUDE.md
+  [4] Semua         → generate all
+
+  Pilih [1-4]:
+```
+
+Pilih agent, langsung generate config file dengan SOLID + SRP rules + palbox conventions.
+
+### One-shot (tanpa install)
+```bash
+npx palskills
 ```
 
 ## Palbox
