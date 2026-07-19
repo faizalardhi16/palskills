@@ -2,7 +2,7 @@
 
 **AI-powered development pipeline** — a suite of 5 Hermes Agent skills that orchestrate the full development lifecycle: context retrieval → planning → execution via Codex CLI → archival.
 
-![Palskills Pipeline](assets/pipeline.jpg)
+![Palskills Pipeline](assets/pipeline.jpg?v=2)
 
 ## Skills
 
