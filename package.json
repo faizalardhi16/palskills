@@ -12,14 +12,20 @@
     "ai-agent",
     "solidsrp"
   ],
-  "author": "Faizal Ardhi Cahyanto",
-  "license": "MIT",
+  "homepage": "https://github.com/faizalardhi16/palskills#readme",
+  "bugs": {
+    "url": "https://github.com/faizalardhi16/palskills/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/faizalardhi16/palskills"
+    "url": "git+https://github.com/faizalardhi16/palskills.git"
   },
+  "license": "MIT",
+  "author": "Faizal Ardhi Cahyanto",
+  "type": "commonjs",
+  "main": "index.js",
   "bin": {
-    "palskills": "./bin/palskills.js"
+    "palskills": "bin/palskills.js"
   },
   "files": [
     "skills/",
