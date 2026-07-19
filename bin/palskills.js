@@ -255,7 +255,14 @@ function generate(agent) {
 
 function skillContent(agent, skill) {
   const skills = {
-    elphidran: `# Elphidran — Design System Recommender
+    elphidran: `---
+name: elphidran
+description: "Design system recommender — analyzes project and generates .palbox/design.md with tokens, typography, spacing, and component patterns."
+version: 1.0.0
+license: MIT
+---
+
+# Elphidran — Design System Recommender
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
 ## Role
@@ -294,7 +301,14 @@ Analyze the project and generate a complete design system specification.
 - Include implementation notes for Anubis
 - One design.md per project
 `,
-    lyleen: `# Lyleen — Palbox Knowledge Graph
+    lyleen: `---
+name: lyleen
+description: "Palbox knowledge graph reader — bootstraps .palbox/ if missing, traverses [[wikilinks]] to retrieve connected context."
+version: 1.0.0
+license: MIT
+---
+
+# Lyleen — Palbox Knowledge Graph
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
 ## Role
@@ -314,7 +328,14 @@ Read and bootstrap the project knowledge graph (.palbox/).
 3. Extract [[wikilinks]], follow 1-2 hops
 4. Return context subgraph: seeds → 1-hop → 2-hop → conventions
 `,
-    jetdragon: `# Jetdragon — Planner
+    jetdragon: `---
+name: jetdragon
+description: "Planning specialist — asks clarifying questions, generates detailed plans with [[wikilinks]] to palbox context."
+version: 1.0.0
+license: MIT
+---
+
+# Jetdragon — Planner
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
 ## Role
@@ -332,7 +353,14 @@ Create detailed implementation plans. Ask questions until clear.
 - Architecture notes, SOLID focus, Risks & Mitigations
 - All references use [[wikilinks]] to .palbox/ entries
 `,
-    anubis: `# Anubis — Developer
+    anubis: `---
+name: anubis
+description: "Development execution engine — executes approved plans via Codex CLI with SOLID + SRP + Ponytail. English only."
+version: 2.1.0
+license: MIT
+---
+
+# Anubis — Developer
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
 ## Role
@@ -374,7 +402,14 @@ Ponytail rules:
 - Read existing files before modifying
 - Write tests if project has testing patterns
 - Non-trivial logic leaves one runnable check behind`,
-    panthalus: `# Panthalus — Archivist
+    panthalus: `---
+name: panthalus
+description: "Knowledge graph archivist — records sessions with bi-directional [[wikilinks]], creating traversable development history."
+version: 1.0.0
+license: MIT
+---
+
+# Panthalus — Archivist
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
 ## Role
@@ -393,7 +428,14 @@ Record sessions to .palbox/ with bi-directional [[wikilinks]].
 - Key Decisions table, Lessons Learned (pitfalls, discoveries)
 - Backlinks section
 `,
-    astralym: `# Astralym — Orchestrator
+    astralym: `---
+name: astralym
+description: "State machine orchestrator — routes prompts through CHECK_GRAPH → DESIGN → PLANNING → DEVELOPING → RECORDING pipeline with state.md tracking."
+version: 1.0.0
+license: MIT
+---
+
+# Astralym — Orchestrator
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
 ## Role
