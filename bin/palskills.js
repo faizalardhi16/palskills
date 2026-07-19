@@ -239,7 +239,7 @@ ${gitContributors ? `\n**Top Contributors:**\n\`\`\`\n${gitContributors}\n\`\`\`
 
 function generate(agent) {
   const cwd = process.cwd();
-  const skillNames = ['lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym'];
+  const skillNames = ['elphidran', 'lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym'];
 
   let dir;
   if (agent === 'codex') dir = path.join(cwd, '.codex', 'skills');
@@ -257,6 +257,45 @@ function generate(agent) {
 
 function skillContent(agent, skill) {
   const skills = {
+    elphidran: `# Elphidran — Design System Recommender
+**Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
+
+## Role
+Analyze the project and generate a complete design system specification.
+
+## Process
+1. Read .palbox/README.md for project identity
+2. Check package.json for UI libraries (tailwind, mui, shadcn, etc.)
+3. ASK the user (use clarifying questions):
+   - "What's the app's personality? (professional, playful, minimal, dark)"
+   - "What industry? (healthcare, finance, education, gaming, e-commerce)"
+   - "Any brand color already?"
+   - "Need dark mode?"
+4. Generate .palbox/design.md with:
+   - Color palette (light + dark if enabled): primary, surface, text, status colors
+   - Typography tokens: font family, sizes, weights, line heights
+   - Spacing scale: 0 to 64px in consistent steps
+   - Border radius: sm(4), md(8), lg(12), full(9999)
+   - Shadows: sm, md, lg, xl
+   - Component patterns: buttons (primary/secondary/ghost/danger), inputs, cards
+   - Layout: max-width, breakpoints, sidebar width
+   - Implementation notes for Anubis — never hardcode values, use tokens
+
+## Design Recommendations by Industry
+- Healthcare → teal, Inter, trustworthy
+- Finance → deep blue, IBM Plex Sans, professional
+- Education → violet, Inter, engaging
+- Gaming → red, Poppins, bold
+- E-commerce → blue, Inter, action-oriented
+- Dev Tools → slate, JetBrains Mono, dark-first
+- Enterprise → dark teal, Inter, corporate
+
+## Rules
+- Always ask questions before generating
+- Use design tokens — never raw values
+- Include implementation notes for Anubis
+- One design.md per project
+`,
     lyleen: `# Lyleen — Palbox Knowledge Graph
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
@@ -347,10 +386,11 @@ Run the full development pipeline. Track every step in .palbox/state.md.
 
 ## Pipeline
 1. **CHECK_GRAPH** → Lyleen: bootstrap or retrieve context
-2. **PLANNING** → Jetdragon: create plan, ask questions, wait for "Gas"
-3. **DEVELOPING** → Anubis: execute with SOLID + SRP
-4. **RECORDING** → Panthalus: record with backlinks
-5. **DONE** → Summary with graph stats
+2. **DESIGN** → Elphidran: generate .palbox/design.md (skip if exists)
+3. **PLANNING** → Jetdragon: create plan, ask questions, wait for "Gas"
+4. **DEVELOPING** → Anubis: execute with SOLID + SRP + design tokens
+5. **RECORDING** → Panthalus: record with backlinks
+6. **DONE** → Summary with graph stats
 
 ## CRITICAL: state.md
 
@@ -366,6 +406,7 @@ Create this file IMMEDIATELY when Astralym is activated:
 **Last Updated:** [current datetime]
 
 ## Progress
+- [ ] DESIGN — Elphidran: generate design system
 - [ ] CHECK_GRAPH — Lyleen: bootstrap or retrieve context
 - [ ] PLANNING — Jetdragon: create plan, ask questions
 - [ ] DEVELOPING — Anubis: execute with SOLID + SRP
