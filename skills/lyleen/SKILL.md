@@ -1,7 +1,7 @@
 ---
 name: lyleen
-description: "Palbox knowledge graph reader & bootstrapper — creates .palbox/ if missing, then traverses [[wikilinks]] to retrieve connected context like an Obsidian vault."
-version: 3.0.0
+description: "Palbox knowledge graph reader, bootstrapper & discoverer — creates .palbox/ if missing, traverses [[wikilinks]] for context, and auto-saves source code analysis to flows/."
+version: 4.0.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
@@ -38,6 +38,8 @@ Lyleen is the **gatekeeper** of the palskills knowledge graph. The palbox is an 
 ```
 
 **Nodes** = `.md` files. **Edges** = `[[wikilinks]]` between them.
+
+> See `references/knowledge-graph-design.md` for the full design rationale behind the palbox graph architecture.
 
 ## How It Works
 
@@ -152,7 +154,7 @@ Created `.palbox/` with interconnected nodes:
 Graph has [N] nodes and [M] edges.
 ```
 
-### Step 2b: Palbox Exists → TRAVERSE
+### Step 2b: Palbox Exists → TRAVERSE (Read-only)
 
 **Phase 1: Seed Discovery**
 
@@ -176,7 +178,7 @@ queue = seed_nodes
 for node in queue:
     visited.add(node)
     content = read(".palbox/" + node)
-    links = extract_wikilinks(content)  # regex: \[\[([^\]]+)\]\] 
+    links = extract_wikilinks(content)  # regex: \[\[([^\]]+)\]\]
     for link in links:
         resolved = resolve_link(link)  # handle paths, .md extension
         if resolved not in visited:
@@ -212,6 +214,101 @@ Matched: "login", "authentication"
 
 Return the subgraph to Astralym/Jetdragon. The context is now **relational** — not just a flat list of files, but a connected graph of knowledge.
 
+### Step 2c: Palbox Exists → DISCOVER (Auto-save to flows/)
+
+Triggered when the user explicitly asks to **learn**, **study**, **pelajari**, or **discover** a module, component, or flow. Unlike TRAVERSE (read-only), DISCOVER reads actual source code and **writes findings to `.palbox/flows/<module>.md`**.
+
+**When to use DISCOVER vs TRAVERSE:**
+
+| User says | Mode | Action |
+|-----------|------|--------|
+| "what do we know about auth" | TRAVERSE | Read palbox, return context |
+| "pelajari flow dan codebase export" | DISCOVER | Read source, write flow doc |
+| "learn the payment module" | DISCOVER | Read source, write flow doc |
+| "analyze how logging works" | DISCOVER | Read source, write flow doc |
+
+**Phase 1: Identify Target**
+
+Extract the module/topic from user prompt. Map to source directories:
+
+```bash
+# Find relevant source files
+find . -type f \( -name "*.py" -o -name "*.ts" -o -name "*.js" -o -name "*.go" -o -name "*.rs" \) \
+  ! -path "./.git/*" ! -path "./node_modules/*" ! -path "./__pycache__/*" ! -path "./.venv/*" \
+  | xargs grep -l "<keyword>" 2>/dev/null | head -20
+```
+
+**Phase 2: Deep Analysis**
+
+Read the identified files. For each file, extract:
+- **Entry points**: exported functions, route handlers, CLI commands
+- **Data flow**: what goes in → what transformations → what comes out
+- **Dependencies**: imports, external services, databases
+- **Patterns**: design patterns used, conventions followed
+- **Edge cases**: error handling, validation, boundary conditions
+
+**Phase 3: Write Flow Document**
+
+Create `.palbox/flows/<module>.md` using this template:
+
+```markdown
+# [Module Name]
+
+**Discovered:** YYYY-MM-DD
+**Source:** [list of files analyzed]
+**Analysis by:** Lyleen (palskills)
+
+## Entry Points
+| Entry | Type | Source | Description |
+|-------|------|--------|-------------|
+| ... | route/function/class | file:line | ... |
+
+## Data Flow
+[Describe how data moves through this module]
+
+```
+[diagram or step-by-step flow]
+```
+
+## Dependencies
+- **Internal:** [[architecture]], [[methods]]
+- **External:** [list external services/APIs]
+- **Packages:** [key third-party packages]
+
+## Key Patterns
+[Patterns and conventions detected]
+
+## Edge Cases & Error Handling
+[How errors are handled, validation, edge cases]
+
+## Related
+- [[architecture]] — module structure
+- [[methods]] — applicable conventions
+- [[history/]] — past work on this module
+```
+
+**Phase 4: Update Architecture**
+
+If this is a new module not yet in architecture.md, append:
+
+```bash
+echo "- [[flows/<module>]] — [one-line description]" >> .palbox/architecture.md
+```
+
+**Phase 5: Report**
+
+```
+## Lyleen Discovered: [Module] ✓
+
+**Saved:** .palbox/flows/<module>.md
+**Files analyzed:** [N]
+**Architecture updated:** [yes/no]
+
+**Graph after discovery:**
+- Node created: [[flows/<module>]]
+- Edges added: → [[architecture]], [[methods]]
+```
+
 ## Wikilink Conventions
 
 | Syntax | Meaning |
@@ -241,3 +338,5 @@ Return the subgraph to Astralym/Jetdragon. The context is now **relational** —
 6. **Report graph stats** — nodes traversed, links followed, orphans found
 7. **Bootstrap is one-time** — subsequent calls traverse the existing graph
 8. **Bidirectional links matter** — Panthalus maintains them; Lyleen exploits them
+9. **DISCOVER writes to flows/** — when user says "learn/pelajari/discover", save analysis to `.palbox/flows/<module>.md` and update architecture.md
+10. **Panthalus owns history/** — Lyleen never writes to `history/`; that's Panthalus's domain (recording development sessions)

@@ -303,18 +303,25 @@ Analyze the project and generate a complete design system specification.
 `,
     lyleen: `---
 name: lyleen
-description: "Palbox knowledge graph reader — bootstraps .palbox/ if missing, traverses [[wikilinks]] to retrieve connected context."
-version: 1.0.0
+description: "Palbox knowledge graph reader, bootstrapper & discoverer — creates .palbox/ if missing, traverses [[wikilinks]] for context, and auto-saves source code analysis to flows/."
+version: 4.0.0
 license: MIT
 ---
 
 # Lyleen — Palbox Knowledge Graph
-**Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
 ## Role
-Read and bootstrap the project knowledge graph (.palbox/).
+Read, bootstrap, and discover the project knowledge graph (.palbox/).
 
-## If .palbox/ does NOT exist — BOOTSTRAP:
+## 3 Modes
+
+| Mode | When | Action |
+|------|------|--------|
+| **BOOTSTRAP** | .palbox/ missing | Create full palbox from scratch |
+| **TRAVERSE** | "what do we know about X" | Read palbox entries → return context (read-only) |
+| **DISCOVER** | "learn/pelajari/study X" | Read source code → write flows/X.md + update architecture |
+
+## BOOTSTRAP (.palbox/ missing)
 1. Scan project: read package.json/requirements.txt/go.mod, list dirs, check git log, find tests
 2. Create .palbox/README.md — project name, tech stack, goals, [[links]]
 3. Create .palbox/architecture.md — folder tree, design patterns, key modules
@@ -322,12 +329,35 @@ Read and bootstrap the project knowledge graph (.palbox/).
 5. Create .palbox/flows/, .palbox/history/, .palbox/plans/
 6. Report: "Palbox bootstrapped. N files. Detected: [stack]."
 
-## If .palbox/ EXISTS — RETRIEVE:
+## TRAVERSE (read-only)
 1. Read README.md, architecture.md, methods.md
 2. Search flows/ and history/ for user keywords
 3. Extract [[wikilinks]], follow 1-2 hops
 4. Return context subgraph: seeds → 1-hop → 2-hop → conventions
-`,
+
+## DISCOVER (auto-save to flows/)
+
+### When to use
+User says: "learn X", "pelajari Y", "discover Z", "analyze W", "study V"
+
+### Process
+1. **Identify target** — extract module/topic from user prompt
+2. **Find source files** — grep for keywords in .py/.ts/.js/.go/.rs files
+3. **Deep analysis** — for each file: entry points, data flow, dependencies, patterns, edge cases
+4. **Write flow doc** → .palbox/flows/<module>.md:
+   - Entry Points table (route/fn/class, type, source, description)
+   - Data Flow description
+   - Dependencies (internal + external + packages)
+   - Key Patterns detected
+   - Edge Cases & Error Handling
+   - Related: [[architecture]], [[methods]], [[history/]]
+5. **Update architecture.md** — if new module, append link
+6. **Report** — "Saved: flows/<module>.md, Files analyzed: N, Graph: +1 node +N edges"
+
+### Delimiter
+- DISCOVER → writes .palbox/flows/* (Lyleen's domain)
+- Panthalus → writes .palbox/history/* (development sessions)
+- NEVER cross domains`,
     jetdragon: `---
 name: jetdragon
 description: "Planning specialist — asks clarifying questions, generates detailed plans with [[wikilinks]] to palbox context."
