@@ -1,6 +1,6 @@
 {
   "name": "palskills",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AI-powered development pipeline — 5 Hermes Agent skills orchestrated as a knowledge graph",
   "keywords": [
     "hermes-agent",
