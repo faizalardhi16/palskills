@@ -2,29 +2,7 @@
 
 **AI-powered development pipeline** — a suite of 5 Hermes Agent skills that orchestrate the full development lifecycle: context retrieval → planning → execution via Codex CLI → archival.
 
-```
-User Prompt
-     │
-     ▼
-┌──────────────────────────────────────────────────────┐
-│                                                      │
-│  🔮 Astralym — State Machine Core                    │
-│     Routes every prompt through the pipeline          │
-│                                                      │
-│     ├─► 📖 Lyleen — Palbox Reader & Bootstrapper     │
-│     │   Checks .palbox/ for context; creates if new   │
-│     │                                                 │
-│     ├─► 🐉 Jetdragon — Planner                       │
-│     │   Asks clarifying questions → detailed plan     │
-│     │                                                 │
-│     ├─► ⚔️ Anubis — Codex Development Engine         │
-│     │   Builds Codex prompt → codex exec (SOLID+SRP)  │
-│     │                                                 │
-│     └─► 📝 Panthalus — Palbox Archivist              │
-│         Records plan + execution → .palbox/history/   │
-│                                                      │
-└──────────────────────────────────────────────────────┘
-```
+![Palskills Pipeline](assets/pipeline.jpg?v=2)
 
 ## Skills
 
