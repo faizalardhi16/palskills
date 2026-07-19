@@ -43,7 +43,6 @@ async function main() {
 
   if (choice === '1') {
     bootstrapPalbox();
-    installSkills();
     console.log(`\n  ${GREEN}✅ Done!${NC} .palbox/ created. Run again to generate agent configs.\n`);
     process.exit(0);
   }
@@ -58,9 +57,6 @@ async function main() {
   for (const agent of agents) {
     generate(agent);
   }
-
-  // Also install Hermes skills
-  installSkills();
 
   console.log(`\n  ${GREEN}✅ Done!${NC} Restart your Agent Tools to load skills.\n`);
 }
@@ -239,7 +235,7 @@ ${gitContributors ? `\n**Top Contributors:**\n\`\`\`\n${gitContributors}\n\`\`\`
 
 function generate(agent) {
   const cwd = process.cwd();
-  const skillNames = ['lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym'];
+  const skillNames = ['elphidran', 'lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym'];
 
   let dir;
   if (agent === 'codex') dir = path.join(cwd, '.codex', 'skills');
@@ -249,14 +245,55 @@ function generate(agent) {
   fs.mkdirSync(dir, { recursive: true });
 
   for (const name of skillNames) {
-    const file = path.join(dir, `${name}.md`);
+    const skillDir = path.join(dir, name);
+    fs.mkdirSync(skillDir, { recursive: true });
+    const file = path.join(skillDir, 'SKILL.md');
     fs.writeFileSync(file, skillContent(agent, name));
-    console.log(`  ${GREEN}✓${NC} ${dir}/${name}.md`);
+    console.log(`  ${GREEN}✓${NC} ${dir}/${name}/SKILL.md`);
   }
 }
 
 function skillContent(agent, skill) {
   const skills = {
+    elphidran: `# Elphidran — Design System Recommender
+**Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
+
+## Role
+Analyze the project and generate a complete design system specification.
+
+## Process
+1. Read .palbox/README.md for project identity
+2. Check package.json for UI libraries (tailwind, mui, shadcn, etc.)
+3. ASK the user (use clarifying questions):
+   - "What's the app's personality? (professional, playful, minimal, dark)"
+   - "What industry? (healthcare, finance, education, gaming, e-commerce)"
+   - "Any brand color already?"
+   - "Need dark mode?"
+4. Generate .palbox/design.md with:
+   - Color palette (light + dark if enabled): primary, surface, text, status colors
+   - Typography tokens: font family, sizes, weights, line heights
+   - Spacing scale: 0 to 64px in consistent steps
+   - Border radius: sm(4), md(8), lg(12), full(9999)
+   - Shadows: sm, md, lg, xl
+   - Component patterns: buttons (primary/secondary/ghost/danger), inputs, cards
+   - Layout: max-width, breakpoints, sidebar width
+   - Implementation notes for Anubis — never hardcode values, use tokens
+
+## Design Recommendations by Industry
+- Healthcare → teal, Inter, trustworthy
+- Finance → deep blue, IBM Plex Sans, professional
+- Education → violet, Inter, engaging
+- Gaming → red, Poppins, bold
+- E-commerce → blue, Inter, action-oriented
+- Dev Tools → slate, JetBrains Mono, dark-first
+- Enterprise → dark teal, Inter, corporate
+
+## Rules
+- Always ask questions before generating
+- Use design tokens — never raw values
+- Include implementation notes for Anubis
+- One design.md per project
+`,
     lyleen: `# Lyleen — Palbox Knowledge Graph
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
@@ -301,6 +338,23 @@ Create detailed implementation plans. Ask questions until clear.
 ## Role
 Execute approved plans. SOLID + SRP enforced. English only.
 
+## PONYTAIL — Token Efficiency (MUST follow)
+Before every action, climb the ladder. Stop at first rung that holds:
+1. Needs building at all? Skip. (YAGNI)
+2. Already in codebase? Reuse.
+3. Stdlib does it? Use it.
+4. Native platform? Use it.
+5. Already-installed dep? Use it.
+6. One line? Do it.
+7. Only then: write minimum code.
+
+Ponytail rules:
+- Fewest files possible, shortest working diff.
+- No unrequested abstractions, no avoidable dependencies, no speculative scaffolding.
+- Prefer deletion over addition. Boring > clever.
+- Complex request? Ship lazy version + ask: "X covers it. Need full?"
+- NEVER cut: validation, error handling, security, accessibility, data-loss protection.
+
 ## SOLID (Strict)
 - **S**: One class, one reason to change
 - **O**: Extend, never modify existing
@@ -319,7 +373,7 @@ Execute approved plans. SOLID + SRP enforced. English only.
 - One commit per logical change (conventional commits)
 - Read existing files before modifying
 - Write tests if project has testing patterns
-`,
+- Non-trivial logic leaves one runnable check behind`,
     panthalus: `# Panthalus — Archivist
 **Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
 
@@ -347,10 +401,11 @@ Run the full development pipeline. Track every step in .palbox/state.md.
 
 ## Pipeline
 1. **CHECK_GRAPH** → Lyleen: bootstrap or retrieve context
-2. **PLANNING** → Jetdragon: create plan, ask questions, wait for "Gas"
-3. **DEVELOPING** → Anubis: execute with SOLID + SRP
-4. **RECORDING** → Panthalus: record with backlinks
-5. **DONE** → Summary with graph stats
+2. **DESIGN** → Elphidran: generate .palbox/design.md (skip if exists)
+3. **PLANNING** → Jetdragon: create plan, ask questions, wait for "Gas"
+4. **DEVELOPING** → Anubis: execute with SOLID + SRP + design tokens
+5. **RECORDING** → Panthalus: record with backlinks
+6. **DONE** → Summary with graph stats
 
 ## CRITICAL: state.md
 
@@ -366,6 +421,7 @@ Create this file IMMEDIATELY when Astralym is activated:
 **Last Updated:** [current datetime]
 
 ## Progress
+- [ ] DESIGN — Elphidran: generate design system
 - [ ] CHECK_GRAPH — Lyleen: bootstrap or retrieve context
 - [ ] PLANNING — Jetdragon: create plan, ask questions
 - [ ] DEVELOPING — Anubis: execute with SOLID + SRP

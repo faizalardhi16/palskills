@@ -81,6 +81,7 @@ Astralym is the central orchestrator of the palskills development system. It rou
 | State | Skill | Action |
 |-------|-------|--------|
 | `CHECK_GRAPH` | Lyleen | Bootstrap if missing; traverse `[[wikilinks]]` → context subgraph |
+| `DESIGN` | Elphidran | Generate `.palbox/design.md` with colors, typography, spacing (skip if exists) |
 | `PLANNING` | Jetdragon | Study subgraph → generate plan with `[[wikilinks]]` → ask questions |
 | `DEVELOPING` | Anubis → Codex | Build Codex prompt from plan → `codex exec` → verify |
 | `RECORDING` | Panthalus | Create history node → add `[[wikilinks]]` → create backlinks → enrich graph |
@@ -99,6 +100,7 @@ ON LOAD: Astralym MUST create or read `.palbox/state.md`. This file tracks pipel
 **Last Updated:** [current datetime]
 
 ## Progress
+- [ ] DESIGN — Elphidran: generate design system
 - [ ] CHECK_GRAPH — Lyleen: bootstrap or retrieve context
 - [ ] PLANNING — Jetdragon: create plan, ask questions
 - [ ] DEVELOPING — Anubis → Codex: execute with SOLID + SRP
