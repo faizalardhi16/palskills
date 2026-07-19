@@ -48,17 +48,19 @@ palskills
 ║     AI Development Pipeline          ║
 ╚══════════════════════════════════════╝
 
-  Select coding agent:
+  What do you want to do?
 
-  [1] Codex CLI     → .codex.md
-  [2] Cursor        → .cursorrules
-  [3] Claude Code   → CLAUDE.md
-  [4] All           → generate all
+  [1] Learn Project   → bootstrap .palbox/ (Lyleen)
+  [2] Codex CLI       → .codex.md
+  [3] Cursor          → .cursorrules
+  [4] Claude Code     → CLAUDE.md
+  [5] All Agents      → generate all configs
 
-  Choose [1-4]:
+  Choose [1-5]:
 ```
 
-Select an agent to instantly generate its config file with SOLID + SRP rules + palbox knowledge graph conventions.
+**Step 1:** Pick `[1]` to analyze the project and create a `.palbox/` knowledge graph.  
+**Step 2:** Pick `[2-5]` to generate agent configs with SOLID + SRP + palbox conventions.
 
 ### One-shot (without installing)
 ```bash
