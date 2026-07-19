@@ -249,9 +249,11 @@ function generate(agent) {
   fs.mkdirSync(dir, { recursive: true });
 
   for (const name of skillNames) {
-    const file = path.join(dir, `${name}.md`);
+    const skillDir = path.join(dir, name);
+    fs.mkdirSync(skillDir, { recursive: true });
+    const file = path.join(skillDir, 'SKILL.md');
     fs.writeFileSync(file, skillContent(agent, name));
-    console.log(`  ${GREEN}✓${NC} ${dir}/${name}.md`);
+    console.log(`  ${GREEN}✓${NC} ${dir}/${name}/SKILL.md`);
   }
 }
 
