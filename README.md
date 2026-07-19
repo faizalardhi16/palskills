@@ -44,6 +44,16 @@ User Prompt
 
 ## Install
 
+### npm (recommended)
+```bash
+npm install -g palskills
+# Skills auto-installed to ~/.hermes/skills/palskills/
+
+# Or one-shot without installing:
+npx palskills
+```
+
+### Git
 ```bash
 git clone https://github.com/faizalardhi16/palskills.git
 cd palskills

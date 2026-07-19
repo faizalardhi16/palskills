@@ -1,0 +1,28 @@
+{
+  "name": "palskills",
+  "version": "1.0.0",
+  "description": "AI-powered development pipeline — 5 Hermes Agent skills orchestrated as a knowledge graph",
+  "keywords": [
+    "hermes-agent",
+    "skills",
+    "palskills",
+    "knowledge-graph",
+    "codex",
+    "development",
+    "ai-agent",
+    "solidsrp"
+  ],
+  "author": "Faizal Ardhi Cahyanto",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/faizalardhi16/palskills"
+  },
+  "files": [
+    "skills/",
+    "install.sh"
+  ],
+  "scripts": {
+    "postinstall": "bash install.sh"
+  }
+}
