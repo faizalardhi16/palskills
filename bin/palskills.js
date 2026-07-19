@@ -62,7 +62,7 @@ async function main() {
   // Also install Hermes skills
   installSkills();
 
-  console.log(`\n  ${GREEN}✅ Done!${NC} Restart Hermes Agent to load skills.\n`);
+  console.log(`\n  ${GREEN}✅ Done!${NC} Restart your Agent Tools to load skills.\n`);
 }
 
 function bootstrapPalbox() {
