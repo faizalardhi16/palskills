@@ -1,14 +1,14 @@
 ---
 name: astralym
-description: "Core state machine orchestrator for the palskills development system. Routes user prompts through CHECK_GRAPH → PLANNING → DEVELOPING → RECORDING states across an Obsidian-like knowledge graph."
-version: 1.1.0
+description: "Core state machine orchestrator for the palskills development system. Routes user prompts through CHECK_GRAPH → DESIGN → COMPONENTIZE → PLANNING → DEVELOPING → RECORDING states across an Obsidian-like knowledge graph."
+version: 2.0.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [palskills, state-machine, orchestrator, knowledge-graph, development-workflow]
-    related_skills: [lyleen, jetdragon, anubis, panthalus]
+    related_skills: [lyleen, elphidran, astegon, jetdragon, anubis, panthalus]
 ---
 
 # Astralym — State Machine Core
@@ -109,6 +109,7 @@ Astralym is the central orchestrator of the palskills development system. It rou
 | `CHECK_GRAPH` | Lyleen | Bootstrap if missing; traverse `[[wikilinks]]` → context subgraph |
 | `DESIGN` | Elphidran | Generate `.palbox/design.md` with colors, typography, spacing (skip if exists) |
 | `COMPONENTIZE` | Astegon | Decompose feature into atomic components, enforce SRP, save to `.palbox/components/` |
+| `ARCHITECT` | Blazamut | Design SOLID modules + API contracts + error handling, save to `.palbox/architectures/` |
 | `PLANNING` | Jetdragon | Study subgraph → generate plan with `[[wikilinks]]` → ask questions |
 | `DEVELOPING` | Anubis → Codex | Build Codex prompt from plan + component specs → `codex exec` → verify |
 | `RECORDING` | Panthalus | Create history node → add `[[wikilinks]]` → create backlinks → enrich graph |
@@ -163,10 +164,13 @@ pending
 .palbox/
 ├── README.md              # Root node — [[architecture]], [[methods]]
 ├── architecture.md         # Codebase map — [[methods]], [[flows/*]]
+├── design.md               # Design system — [[architecture]] (Elphidran)
 ├── methods.md              # Conventions — [[architecture]], [[history/*]]
 ├── flows/                  # Feature docs — [[architecture]], [[methods]], [[history/*]]
 │   └── *.md
-├── plans/                  # Active plans — [[flows/*]], [[history/*]]
+├── components/             # Component specs — [[design]], [[flows/*]] (Astegon)
+│   └── *.md
+├── plans/                  # Active plans — [[flows/*]], [[components/*]], [[history/*]]
 │   └── YYYY-MM-DD-*.md
 └── history/                # Session records — [[flows/*]], [[architecture]], [[methods]]
     └── YYYY-MM-DD-*.md
@@ -180,7 +184,7 @@ Palskills works in **two environments**, not just Hermes:
 ```
 "Load astralym, build a user dashboard"
 ```
-Astralym orchestrates: Lyleen → Jetdragon → Anubis → Panthalus, enforcing state transitions.
+Astralym orchestrates: Lyleen → Elphidran → Astegon → Jetdragon → Anubis → Panthalus, enforcing state transitions.
 
 ### B. Any coding agent (via CLI-generated configs)
 ```bash
@@ -192,7 +196,7 @@ Then in Codex, Cursor, or Claude Code:
 Lyleen: learn the auth module
 Astralym: build a forgot-password feature
 ```
-The agent reads the config and follows the skill's step-by-step instructions. Full 5-mode system embedded. See `references/cli-integration.md` for details.
+The agent reads the config and follows the skill's step-by-step instructions. Full 7-mode system embedded. See `references/cli-integration.md` for details.
 
 **Design rule:** every agent config MUST contain the complete multi-mode skill system, not just static rules. The user explicitly rejected rules-only configs.
 

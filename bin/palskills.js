@@ -235,7 +235,7 @@ ${gitContributors ? `\n**Top Contributors:**\n\`\`\`\n${gitContributors}\n\`\`\`
 
 function generate(agent) {
   const cwd = process.cwd();
-  const skillNames = ['elphidran', 'astegon', 'lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym'];
+  const skillNames = ['elphidran', 'astegon', 'blazamut', 'lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym'];
 
   let dir;
   if (agent === 'codex') dir = path.join(cwd, '.codex', 'skills');
@@ -361,6 +361,65 @@ For every component, complete this card:
 - Server-first (React): Client only for event handlers/hooks/browser APIs
 - Tokens over raw values (color.primary not #3B82F6)
 - Save to .palbox/components/
+- Hand off to Jetdragon for implementation planning`,
+    blazamut: `---
+name: blazamut
+description: "Backend architecture authority — decomposes features into SOLID modules, enforces SRP at class level, and designs API contracts, data flow, and error handling before any code is written."
+version: 1.0.0
+license: MIT
+---
+
+# Blazamut — Backend Architecture Authority
+
+## Role
+Design backend code structure following SOLID principles with strict SRP enforcement. Decide module decomposition, API contracts, dependency graphs, and error handling.
+
+## SOLID + SRP Layers
+
+| Layer | Responsibility | SRP Rule |
+|-------|---------------|----------|
+| **Controller** | HTTP ONLY | Parse request, call service, format response |
+| **Service** | Business logic ONLY | Orchestrate, never touch HTTP or DB |
+| **Repository** | Data access ONLY | CRUD, never business logic |
+| **Validator** | Validation ONLY | Validate shape, never fetch data |
+| **DTO** | Data shape ONLY | Define structures, never logic |
+| **Entity/Model** | Data structure ONLY | Schema, no methods with logic |
+| **Middleware** | Cross-cutting ONLY | Auth, logging, rate limiting |
+| **Util** | Pure functions ONLY | Stateless, no side effects |
+
+## Process
+1. Read .palbox/architecture.md + .palbox/methods.md
+2. Scan existing backend code (find patterns, classes)
+3. Decompose feature into strict layers
+4. For EACH class: spec card (layer, single responsibility, injected deps, public methods, throws, must-NOT-do)
+5. Build dependency graph (all arrows point inward)
+6. Design API contract per endpoint (request/response shapes, status codes, auth, rate limits)
+7. Design error hierarchy (typed exceptions → HTTP status mapping)
+8. If schema changes: migration spec with columns, constraints, indexes
+9. Save to .palbox/architectures/<feature>.md
+10. Report: "N modules (Controllers: X, Services: Y, Repositories: Z, Endpoints: N)"
+
+## SRP Verification
+- Controller has business logic? → Extract Service
+- Service touches DB directly? → Extract Repository
+- Repository validates rules? → Extract Validator
+- Validator fetches data? → Move fetch to Service
+- DTO has logic? → Move to Service/Util
+- No class > 200 lines → split before it grows
+
+## API Contract Template
+Per endpoint: method, path, controller, service, request shape, success response, error responses, auth requirement, rate limit.
+
+## Error Hierarchy
+AppException base → typed subclasses (NotFound, Validation, Auth, Conflict, RateLimit). Global handler maps to HTTP. NEVER leak stacktraces.
+
+## Rules
+- Dependencies flow inward: Controller → Service → Repository → DB
+- Interface for every dependency (inject abstractions)
+- Inner layers never know outer layers
+- API contract first, implementation second
+- Reuse existing before creating new
+- Save to .palbox/architectures/
 - Hand off to Jetdragon for implementation planning`,
     lyleen: `---
 name: lyleen
@@ -536,10 +595,11 @@ Run the full development pipeline. Track every step in .palbox/state.md.
 1. **CHECK_GRAPH** → Lyleen: bootstrap or retrieve context
 2. **DESIGN** → Elphidran: generate .palbox/design.md (skip if exists)
 3. **COMPONENTIZE** → Astegon: atomic decomposition + SRP, save to .palbox/components/
-4. **PLANNING** → Jetdragon: create plan, ask questions, wait for "Gas"
-5. **DEVELOPING** → Anubis: execute with SOLID + SRP + design tokens
-6. **RECORDING** → Panthalus: record with backlinks
-7. **DONE** → Summary with graph stats
+4. **ARCHITECT** → Blazamut: SOLID module design + API contracts, save to .palbox/architectures/
+5. **PLANNING** → Jetdragon: create plan, ask questions, wait for "Gas"
+6. **DEVELOPING** → Anubis: execute with SOLID + SRP + design tokens
+7. **RECORDING** → Panthalus: record with backlinks
+8. **DONE** → Summary with graph stats
 
 ## CRITICAL: state.md
 
@@ -558,6 +618,7 @@ Create this file IMMEDIATELY when Astralym is activated:
 - [ ] DESIGN — Elphidran: generate design system
 - [ ] CHECK_GRAPH — Lyleen: bootstrap or retrieve context
 - [ ] COMPONENTIZE — Astegon: atomic decomposition + SRP specs
+- [ ] ARCHITECT — Blazamut: SOLID modules + API contracts
 - [ ] PLANNING — Jetdragon: create plan, ask questions
 - [ ] DEVELOPING — Anubis: execute with SOLID + SRP
 - [ ] RECORDING — Panthalus: record with backlinks
@@ -577,6 +638,7 @@ pending
    - CHECK_GRAPH: "Retrieved [N] relevant nodes" or "Bootstrapped palbox"
    - DESIGN: "Generated [[design]] — [N] colors, [N] font sizes"
    - COMPONENTIZE: "Decomposed into [N] components (Atoms: X, Molecules: Y, Organisms: Z)"
+   - ARCHITECT: "Designed [N] modules (Controllers: X, Services: Y, Repositories: Z)"
    - PLANNING: Link to plan file: [[plans/YYYY-MM-DD-feature]]
    - DEVELOPING: "Implemented: [files changed], [N] commits"
    - RECORDING: Link to history: [[history/YYYY-MM-DD-feature]]
