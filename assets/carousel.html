@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Palskills — AI Development Pipeline</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --purple: #bc8cff;
+    --orange: #d29922;
+    --red: #f85149;
+    --teal: #39d353;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  .carousel-container {
+    width: 100%;
+    max-width: 720px;
+    position: relative;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .header h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header p {
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin-top: 0.4rem;
+  }
+
+  .slides {
+    position: relative;
+    min-height: 420px;
+  }
+
+  .slide {
+    display: none;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    animation: fadeSlide 0.4s ease;
+  }
+  .slide.active { display: block; }
+
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .slide-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .slide-title .emoji { font-size: 1.8rem; }
+
+  .pipeline-viz {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    margin: 1.5rem 0;
+  }
+  .pipe-step {
+    background: var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .pipe-arrow { color: var(--muted); padding: 0.5rem 0; font-size: 0.8rem; }
+
+  .skill-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    margin-top: 1rem;
+  }
+  .skill-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    transition: border-color 0.2s;
+  }
+  .skill-card:hover { border-color: var(--accent); }
+  .skill-card .name {
+    font-weight: 700;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .skill-card .role { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+  .skill-card .desc { font-size: 0.8rem; margin-top: 0.5rem; line-height: 1.4; }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .badge-frontend { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .badge-backend { background: rgba(210,153,34,0.15); color: var(--orange); }
+  .badge-core { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .badge-meta { background: rgba(63,185,80,0.15); color: var(--green); }
+
+  .feature-list {
+    margin-top: 1rem;
+  }
+  .feature-list li {
+    list-style: none;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .feature-list li:last-child { border-bottom: none; }
+  .feature-list .check { color: var(--green); font-weight: bold; }
+
+  .palbox-tree {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.8rem;
+    line-height: 1.7;
+    margin-top: 1rem;
+  }
+  .palbox-tree .dir { color: var(--accent); }
+  .palbox-tree .file { color: var(--muted); }
+  .palbox-tree .hl { color: var(--green); }
+
+  .nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1.5rem;
+  }
+  .nav button {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .nav button:hover { border-color: var(--accent); background: var(--border); }
+  .nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+  .dots {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+  .dot.active { background: var(--accent); width: 24px; border-radius: 4px; }
+  .page-indicator {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 0.8rem;
+  }
+
+  .highlight-box {
+    background: rgba(88,166,255,0.08);
+    border: 1px solid rgba(88,166,255,0.2);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  .cta {
+    text-align: center;
+    margin-top: 1.5rem;
+  }
+  .cta code {
+    background: var(--border);
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="carousel-container">
+
+  <div class="header">
+    <h1>⚡ Palskills</h1>
+    <p>AI-Powered Development Pipeline — 8 skills, one knowledge graph</p>
+  </div>
+
+  <div class="slides">
+
+    <!-- Slide 0: Overview -->
+    <div class="slide active" data-index="0">
+      <div class="slide-title"><span class="emoji">🚀</span> What is Palskills?</div>
+      <p style="font-size:0.95rem;line-height:1.6;color:var(--muted);">
+        An <strong>AI-native development methodology</strong> that breaks the software lifecycle
+        into <strong>8 specialized skills</strong>, each owning one phase. No skill overlaps.
+        Every decision is captured in a <strong>knowledge graph</strong> (.palbox/).
+      </p>
+      <div class="pipeline-viz">
+        <span class="pipe-step">🔍 Lyleen</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step">🎨 Elphidran</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step">🧩 Astegon</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step">🏗️ Blazamut</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step">📋 Jetdragon</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step">⚔️ Anubis</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step">📝 Panthalus</span><span class="pipe-arrow">→</span>
+        <span class="pipe-step">🎯 Astralym</span>
+      </div>
+      <div class="highlight-box">
+        <strong>🔥 Key insight:</strong> Each skill <strong>decides</strong>, not suggests.
+        Lyleen discovers codebases. Astegon decides components. Blazamut designs modules.
+        Anubis executes. Panthalus records. No more "what should I build?" — the skills tell you.
+      </div>
+      <div class="cta">
+        <code>npm i -g palskills && palskills</code>
+      </div>
+    </div>
+
+    <!-- Slide 1: 8 Skills -->
+    <div class="slide" data-index="1">
+      <div class="slide-title"><span class="emoji">👥</span> The 8 Skills</div>
+      <div class="skill-grid">
+        <div class="skill-card">
+          <div class="name">🔍 Lyleen <span class="badge badge-core">v4</span></div>
+          <div class="role">Knowledge Graph Reader</div>
+          <div class="desc">Bootstrap .palbox/ or DISCOVER codebases — auto-saves analysis to <code>flows/</code></div>
+        </div>
+        <div class="skill-card">
+          <div class="name">🎨 Elphidran <span class="badge badge-frontend">UI</span></div>
+          <div class="role">Design System Architect</div>
+          <div class="desc">Generates tokens: colors, typography, spacing, shadows → <code>design.md</code></div>
+        </div>
+        <div class="skill-card">
+          <div class="name">🧩 Astegon <span class="badge badge-frontend">UI</span></div>
+          <div class="role">Frontend Component Architect</div>
+          <div class="desc">Atomic design + SRP. Decides component hierarchy → <code>components/</code></div>
+        </div>
+        <div class="skill-card">
+          <div class="name">🏗️ Blazamut <span class="badge badge-backend">API</span></div>
+          <div class="role">Backend Architecture Authority</div>
+          <div class="desc">SOLID modules, API contracts, error hierarchy → <code>architectures/</code></div>
+        </div>
+        <div class="skill-card">
+          <div class="name">📋 Jetdragon <span class="badge badge-core">Core</span></div>
+          <div class="role">Implementation Planner</div>
+          <div class="desc">Creates detailed plans with [[wikilinks]]. Asks until clear → "Gas"</div>
+        </div>
+        <div class="skill-card">
+          <div class="name">⚔️ Anubis <span class="badge badge-core">Core</span></div>
+          <div class="role">Development Engine</div>
+          <div class="desc">SOLID + SRP + Ponytail. Executes via Codex CLI. English only.</div>
+        </div>
+        <div class="skill-card">
+          <div class="name">📝 Panthalus <span class="badge badge-meta">Meta</span></div>
+          <div class="role">Knowledge Graph Archivist</div>
+          <div class="desc">Records sessions with bi-directional [[wikilinks]] → <code>history/</code></div>
+        </div>
+        <div class="skill-card">
+          <div class="name">🎯 Astralym <span class="badge badge-meta">Meta</span></div>
+          <div class="role">State Machine Orchestrator</div>
+          <div class="desc">Runs full pipeline. Tracks progress in <code>state.md</code> with checkboxes</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 2: Pipeline Flow -->
+    <div class="slide" data-index="2">
+      <div class="slide-title"><span class="emoji">🔄</span> Full Pipeline Flow</div>
+      <div class="highlight-box" style="font-family:monospace;font-size:0.8rem;line-height:2;">
+        <span style="color:var(--accent)">Astralym: build user dashboard</span><br>
+        │<br>
+        ├─ <span style="color:var(--teal)">[x] CHECK_GRAPH</span> → Lyleen: Retrieved 3 nodes<br>
+        ├─ <span style="color:var(--teal)">[x] DESIGN</span> → Elphidran: Generated [[design]] — 8 colors<br>
+        ├─ <span style="color:var(--green)">[~] COMPONENTIZE</span> → Astegon: 12 components (A:5, M:4, O:3)<br>
+        ├─ <span style="color:var(--muted)">[ ] ARCHITECT</span> → Blazamut: pending<br>
+        ├─ <span style="color:var(--muted)">[ ] PLANNING</span> → Jetdragon: pending<br>
+        ├─ <span style="color:var(--muted)">[ ] DEVELOPING</span> → Anubis: pending<br>
+        ├─ <span style="color:var(--muted)">[ ] RECORDING</span> → Panthalus: pending<br>
+        └─ <span style="color:var(--muted)">[ ] DONE</span>
+      </div>
+      <p style="color:var(--muted);font-size:0.85rem;margin-top:1rem;">
+        💡 <strong>Resumable.</strong> If interrupted, Astralym reads <code>state.md</code> and continues from the first unchecked step.
+      </p>
+    </div>
+
+    <!-- Slide 3: Knowledge Graph -->
+    <div class="slide" data-index="3">
+      <div class="slide-title"><span class="emoji">🧠</span> The Palbox — Knowledge Graph</div>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:1rem;">
+        Every decision, discovery, and session is stored as an Obsidian-style graph with <strong>[[wikilinks]]</strong>.
+      </p>
+      <div class="palbox-tree">
+        <span class="dir">.palbox/</span><br>
+        &nbsp;&nbsp;<span class="file">├── state.md</span> <span style="color:var(--muted)"># Pipeline progress tracker</span><br>
+        &nbsp;&nbsp;<span class="file">├── README.md</span> <span style="color:var(--muted)"># Root node → [[architecture]], [[methods]]</span><br>
+        &nbsp;&nbsp;<span class="file">├── architecture.md</span> <span style="color:var(--muted)"># Codebase map</span><br>
+        &nbsp;&nbsp;<span class="file">├── design.md</span> <span style="color:var(--muted)"># Design tokens (Elphidran)</span><br>
+        &nbsp;&nbsp;<span class="file">├── methods.md</span> <span style="color:var(--muted)"># Conventions & standards</span><br>
+        &nbsp;&nbsp;<span class="dir">├── flows/</span> <span style="color:var(--muted)"># Lyleen DISCOVER → auto-saved</span><br>
+        &nbsp;&nbsp;<span class="dir">├── components/</span> <span style="color:var(--muted)"># Astegon specs</span><br>
+        &nbsp;&nbsp;<span class="dir">├── architectures/</span> <span style="color:var(--muted)"># Blazamut specs</span><br>
+        &nbsp;&nbsp;<span class="dir">├── plans/</span> <span style="color:var(--muted)"># Jetdragon plans</span><br>
+        &nbsp;&nbsp;<span class="dir">└── history/</span> <span style="color:var(--muted)"># Panthalus session records</span>
+      </div>
+      <div class="highlight-box" style="margin-top:1rem;">
+        🔗 <strong>Domain separation:</strong> Lyleen→flows/ | Astegon→components/ | Blazamut→architectures/ | Panthalus→history/<br>
+        Never cross domains. Every edge is a [[wikilink]].
+      </div>
+    </div>
+
+    <!-- Slide 4: Key Principles -->
+    <div class="slide" data-index="4">
+      <div class="slide-title"><span class="emoji">💎</span> Design Principles</div>
+      <ul class="feature-list">
+        <li><span class="check">✓</span> <strong>Decide, don't suggest</strong> — Skill output is authoritative, not advisory</li>
+        <li><span class="check">✓</span> <strong>SRP Everywhere</strong> — One component, one job. One class, one reason to change.</li>
+        <li><span class="check">✓</span> <strong>Ponytail (Token Efficiency)</strong> — Lazy senior dev. Shortest diff wins. Boring > clever.</li>
+        <li><span class="check">✓</span> <strong>On-Demand Capture</strong> — Only what matters goes to palbox. No dumpster.</li>
+        <li><span class="check">✓</span> <strong>Cross-Agent</strong> — Works in Codex, Cursor, Claude Code. Same skills, same graph.</li>
+        <li><span class="check">✓</span> <strong>Knowledge Graph, not Docs</strong> — [[wikilinks]] over flat files. Bidirectional edges.</li>
+        <li><span class="check">✓</span> <strong>Resumable Pipeline</strong> — state.md checkboxes. Crash? Restart from last [ ].</li>
+      </ul>
+    </div>
+
+    <!-- Slide 5: Quick Start -->
+    <div class="slide" data-index="5">
+      <div class="slide-title"><span class="emoji">⚡</span> Quick Start</div>
+      <div class="highlight-box" style="font-family:monospace;font-size:0.85rem;line-height:2.2;">
+        <span style="color:var(--muted)"># 1. Install</span><br>
+        <span style="color:var(--green)">$</span> npm i -g palskills<br><br>
+        <span style="color:var(--muted)"># 2. Learn your project</span><br>
+        <span style="color:var(--green)">$</span> cd my-project && palskills<br>
+        &nbsp;&nbsp;<span style="color:var(--muted)">→ [1] Learn Project</span><br><br>
+        <span style="color:var(--muted)"># 3. Generate agent skills</span><br>
+        &nbsp;&nbsp;<span style="color:var(--muted)">→ [5] All Agents</span><br><br>
+        <span style="color:var(--muted)"># 4. Start developing</span><br>
+        <span style="color:var(--green)">$</span> codex "Astralym: build user dashboard"<br>
+        <span style="color:var(--green)">$</span> cursor "Lyleen: discover auth module"<br>
+        <span style="color:var(--green)">$</span> claude "Blazamut: architect payment API"
+      </div>
+      <div class="cta" style="margin-top:1.2rem;">
+        <span style="font-size:0.9rem;color:var(--muted);">Works with</span>&nbsp;
+        <span class="badge badge-core">Codex</span>&nbsp;
+        <span class="badge badge-frontend">Cursor</span>&nbsp;
+        <span class="badge badge-backend">Claude Code</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Navigation -->
+  <div class="nav">
+    <button id="prevBtn" onclick="prevSlide()">← Prev</button>
+    <div class="dots" id="dots"></div>
+    <button id="nextBtn" onclick="nextSlide()">Next →</button>
+  </div>
+  <div class="page-indicator" id="pageIndicator"></div>
+
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const dotsContainer = document.getElementById('dots');
+  const pageIndicator = document.getElementById('pageIndicator');
+  let current = 0;
+
+  // Create dots
+  slides.forEach((_, i) => {
+    const dot = document.createElement('span');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goTo(i);
+    dotsContainer.appendChild(dot);
+  });
+
+  function update() {
+    slides.forEach((s, i) => s.classList.toggle('active', i === current));
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === current));
+    document.getElementById('prevBtn').disabled = current === 0;
+    document.getElementById('nextBtn').disabled = current === slides.length - 1;
+    pageIndicator.textContent = `${current + 1} / ${slides.length}`;
+  }
+
+  function goTo(i) { current = i; update(); }
+  function prevSlide() { if (current > 0) goTo(current - 1); }
+  function nextSlide() { if (current < slides.length - 1) goTo(current + 1); }
+
+  // Keyboard nav
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') prevSlide();
+    if (e.key === 'ArrowRight') nextSlide();
+  });
+
+  update();
+</script>
+
+</body>
+</html>
