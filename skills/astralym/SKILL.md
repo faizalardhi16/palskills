@@ -35,6 +35,32 @@ Astralym is the central orchestrator of the palskills development system. It rou
                                    │
                                    ▼
                         ┌──────────────────────┐
+                        │    DESIGN             │
+                        │    (Elphidran)        │
+                        │                      │
+                        │  → read project       │
+                        │  → ask about vibe     │
+                        │  → generate tokens    │
+                        │  → save design.md     │
+                        └──────────┬───────────┘
+                                   │
+                         design system ready
+                                   │
+                                   ▼
+                        ┌──────────────────────┐
+                        │    COMPONENTIZE       │
+                        │    (Astegon)          │
+                        │                      │
+                        │  → decompose feature  │
+                        │  → atomic design+SRP  │
+                        │  → component specs    │
+                        │  → save components/   │
+                        └──────────┬───────────┘
+                                   │
+                         component tree ready
+                                   │
+                                   ▼
+                        ┌──────────────────────┐
                         │    PLANNING           │
                         │    (Jetdragon)        │
                         │                      │
@@ -82,8 +108,9 @@ Astralym is the central orchestrator of the palskills development system. It rou
 |-------|-------|--------|
 | `CHECK_GRAPH` | Lyleen | Bootstrap if missing; traverse `[[wikilinks]]` → context subgraph |
 | `DESIGN` | Elphidran | Generate `.palbox/design.md` with colors, typography, spacing (skip if exists) |
+| `COMPONENTIZE` | Astegon | Decompose feature into atomic components, enforce SRP, save to `.palbox/components/` |
 | `PLANNING` | Jetdragon | Study subgraph → generate plan with `[[wikilinks]]` → ask questions |
-| `DEVELOPING` | Anubis → Codex | Build Codex prompt from plan → `codex exec` → verify |
+| `DEVELOPING` | Anubis → Codex | Build Codex prompt from plan + component specs → `codex exec` → verify |
 | `RECORDING` | Panthalus | Create history node → add `[[wikilinks]]` → create backlinks → enrich graph |
 | `DONE` | Astralym | Report summary + graph stats; return to IDLE |
 
@@ -102,8 +129,9 @@ ON LOAD: Astralym MUST create or read `.palbox/state.md`. This file tracks pipel
 ## Progress
 - [ ] DESIGN — Elphidran: generate design system
 - [ ] CHECK_GRAPH — Lyleen: bootstrap or retrieve context
+- [ ] COMPONENTIZE — Astegon: atomic decomposition + SRP specs
 - [ ] PLANNING — Jetdragon: create plan, ask questions
-- [ ] DEVELOPING — Anubis → Codex: execute with SOLID + SRP
+- [ ] DEVELOPING — Anubis: execute with SOLID + SRP + design tokens
 - [ ] RECORDING — Panthalus: record with backlinks
 - [ ] DONE — Report summary
 
@@ -119,6 +147,8 @@ pending
 2. **Checkmark `[x]` each step IMMEDIATELY after completion.** Do not batch.
 3. **Add notes after each step:**
    - CHECK_GRAPH: "Retrieved [N] relevant nodes" or "Bootstrapped palbox with [N] files"
+   - DESIGN: "Generated [[design]] — [N] colors, [N] font sizes"
+   - COMPONENTIZE: "Decomposed into [N] components (Atoms: X, Molecules: Y, Organisms: Z)"
    - PLANNING: Link to plan: `[[plans/YYYY-MM-DD-feature]]`
    - DEVELOPING: "Implemented: [files changed], [N] commits"
    - RECORDING: Link to history: `[[history/YYYY-MM-DD-feature]]`
@@ -166,6 +196,12 @@ The agent reads the config and follows the skill's step-by-step instructions. Fu
 
 **Design rule:** every agent config MUST contain the complete multi-mode skill system, not just static rules. The user explicitly rejected rules-only configs.
 
+## Pitfalls
+
+1. **Flat `.md` files are invisible to agents.** When generating agent configs, each skill MUST be a folder with `SKILL.md` inside — e.g. `.codex/skills/anubis/SKILL.md`, NOT `.codex/skills/anubis.md`. Coding agents won't recognize flat skill files. The `palskills` CLI v1.0.7 had this bug; fixed in v1.0.8.
+
+2. **Agent configs must embed full skill content, not just SOLID rules.** The user rejected rules-only configs. Every generated config (`.codex.md`, `.cursorrules`, `CLAUDE.md`) must contain the complete 5-mode skill system with step-by-step instructions.
+
 ## Rules
 
 1. **Never skip states** — every prompt flows through the full pipeline
@@ -178,3 +214,5 @@ The agent reads the config and follows the skill's step-by-step instructions. Fu
 ## See Also
 
 - `references/cli-integration.md` — How the `palskills` CLI generates agent configs (`.codex.md`, `.cursorrules`, `CLAUDE.md`) that integrate with this pipeline
+- `references/cross-agent-pattern.md` — Folder-per-skill structure and cross-agent compatibility
+- `scripts/sync-to-package.sh` — Sync Hermes-installed skills back to npm package source before publishing
