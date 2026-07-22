@@ -1,19 +1,45 @@
 # Palskills
 
-**AI-powered development pipeline** for any coding agent — Codex, Cursor, Claude Code, and more. Five specialized skills orchestrate the full development lifecycle: learn the codebase → plan with clarification → execute with SOLID/SRP → record to a knowledge graph.
+**AI-powered development pipeline** for any coding agent — Codex, Cursor, Claude Code, and more. Eight specialized skills orchestrate the full development lifecycle: learn the codebase → design → plan with clarification → execute with SOLID/SRP → record to a knowledge graph.
 
 ![Palskills Pipeline](assets/pipeline.jpg?v=2)
 
 ## Skills
 
+### Pipeline (Astralym)
+
+These 4 skills run automatically when you invoke **Astralym**:
+
 | Skill | Role | Key Trait |
 |-------|------|-----------|
-| **Astralym** | Orchestrator | Runs the full pipeline, tracks progress in `state.md` |
-| **Elphidran** | Design Architect | Generates `.palbox/design.md` — colors, typography, spacing |
 | **Lyleen** | Knowledge Graph | Bootstraps `.palbox/` or traverses `[[wikilinks]]` for context |
 | **Jetdragon** | Planner | Asks clarifying questions, generates detailed plans |
 | **Anubis** | Developer | SOLID + SRP enforced, English only, reads design tokens |
 | **Panthalus** | Archivist | Records every session with bi-directional `[[wikilinks]]` |
+
+Pipeline flow: `CHECK_GRAPH (Lyleen) → PLANNING (Jetdragon) → DEVELOPING (Anubis + Verdash pre-commit) → RECORDING (Panthalus) → DONE`
+
+### Standalone
+
+These 4 skills are **not in the pipeline** — call them manually when needed (project setup, FE/BE rebuilds, rebranding):
+
+| Skill | Role | Trigger | Output |
+|-------|------|---------|--------|
+| **Elphidran** | Design Architect | "design the app" / rebranding | `.palbox/design.md` — colors, typography, spacing |
+| **Astegon** | Frontend Component Architect | "componentize X" / FE rebuild | `.palbox/components/<feature>.md` — atomic component tree + SRP specs |
+| **Blazamut** | Backend Architecture Authority | "architect X" / BE rebuild | `.palbox/architectures/<feature>.md` — SOLID modules + API contracts |
+| **Verdash** | Unit Test Runner & TDD Enforcer | "test X" / pre-commit gate | `.palbox/coverage/` — test results + coverage reports |
+| **Astralym** | Orchestrator | Runs the full pipeline, tracks progress in `state.md` | `.palbox/state.md` |
+
+### Why Standalone?
+
+**Elphidran**, **Astegon**, and **Blazamut** are architectural decision-makers — not per-task workers. They're heavy-lifting skills called once per project (or per major rebuild):
+
+- **Elphidran** — defines the entire design system (tokens, palette, typography). Run once upfront, not every task.
+- **Astegon** — decides the complete frontend component hierarchy with atomic design + SRP. For FE rebuilds, not individual features.
+- **Blazamut** — designs the full backend module structure with SOLID layers + API contracts. For BE rebuilds, not individual endpoints.
+
+Astralym is the orchestrator but listed as standalone because you invoke it directly — it then spawns the pipeline skills (Lyleen → Jetdragon → Anubis → Panthalus).
 
 ## Prerequisites
 
@@ -57,7 +83,7 @@ Pick `[1]`. Lyleen scans your codebase and creates `.palbox/` — a knowledge gr
 
 ### Step 2 — Generate agent skills
 
-Pick your agent `[2-4]`, or `[5]` for all. Each agent gets 5 skill files ready to use.
+Pick your agent `[2-4]`, or `[5]` for all. Each agent gets skill files ready to use.
 
 ## How to Develop with Palskills
 
@@ -69,22 +95,36 @@ Once skills are generated, open your AI coding agent and start a prompt with a s
 Astralym: build a PDF export feature for the reports module
 ```
 
-Astralym runs all 5 steps: learns the codebase → plans with your input → executes code → records everything. Tracks progress in `.palbox/state.md` with checkboxes — resumable if interrupted.
+Astralym runs the full pipeline: learns the codebase → plans with your input → executes code → records everything. Tracks progress in `.palbox/state.md` with checkboxes — resumable if interrupted.
 
 ### Individual Skills
+
+#### Pipeline Skills (per-task)
 
 | Prompt | What happens |
 |--------|-------------|
 | `Lyleen: learn the auth module` | Reads or bootstraps `.palbox/`, returns relevant context |
-| `Elphidran: design the app` | Asks about vibe/industry → generates `.palbox/design.md` |
 | `Jetdragon: plan a forgot-password feature` | Creates `.palbox/plans/` plan, asks clarifying questions. Say **"Gas"** when ready |
 | `Anubis: implement the approved plan` | Executes the plan with SOLID + SRP + design tokens, all code in English |
 | `Panthalus: record this session` | Saves to `.palbox/history/` with bi-directional `[[wikilinks]]` |
 
-### Flow
+#### Standalone Skills (project-level)
+
+| Prompt | What happens |
+|--------|-------------|
+| `Elphidran: design the app` | Asks about vibe/industry → generates `.palbox/design.md` |
+| `Astegon: componentize the dashboard` | Reads design system → produces atomic component tree + SRP specs → saves `.palbox/components/` |
+| `Blazamut: architect the auth module` | Reads project context → designs SOLID modules + API contracts → saves `.palbox/architectures/` |
+| `Verdash: test the login flow` | Runs TDD cycle (RED → GREEN → REFACTOR), enforces 80% coverage, generates scaffolding |
+
+### Standalone Flow
 
 ```
-Lyleen (context) → Jetdragon (plan) → "Gas" → Anubis (code) → Panthalus (record)
+Elphidran (design) → Astegon (FE components) + Blazamut (BE architecture)  [parallel]
+                           ↓
+                    Verdash (TDD: RED → GREEN → REFACTOR)
+                           ↓
+                    Jetdragon (plan) → "Gas" → Anubis (code) → Panthalus (record)
 ```
 
 ## Palbox
@@ -93,14 +133,19 @@ The `.palbox/` knowledge graph grows with every session:
 
 ```
 .palbox/
-├── state.md            # Pipeline progress tracker
-├── README.md           # Project identity & tech stack
-├── architecture.md     # Folder map & design patterns
-├── design.md           # Design system (colors, typography, spacing)
-├── methods.md          # Conventions & standards
-├── flows/              # Feature workflow docs
-├── plans/              # Active plans
-└── history/            # Past sessions with [[wikilinks]]
+├── state.md                 # Pipeline progress tracker
+├── README.md                # Project identity & tech stack
+├── architecture.md          # Folder map & design patterns
+├── design.md                # Design system (colors, typography, spacing)
+├── methods.md               # Conventions & standards
+├── components/              # Astegon: frontend component specs
+│   └── <feature-name>.md
+├── architectures/           # Blazamut: backend module specs
+├── coverage/                # Verdash: test coverage reports
+│   └── <feature-name>.md
+├── flows/                   # Feature workflow docs
+├── plans/                   # Active plans
+└── history/                 # Past sessions with [[wikilinks]]
 ```
 
 ## Supported Agents
