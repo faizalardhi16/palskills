@@ -17,7 +17,7 @@ These 4 skills run automatically when you invoke **Astralym**:
 | **Anubis** | Developer | SOLID + SRP enforced, English only, reads design tokens |
 | **Panthalus** | Archivist | Records every session with bi-directional `[[wikilinks]]` |
 
-Pipeline flow: `CHECK_GRAPH (Lyleen) → PLANNING (Jetdragon) → DEVELOPING (Anubis) → RECORDING (Panthalus) → DONE`
+Pipeline flow: `CHECK_GRAPH (Lyleen) → PLANNING (Jetdragon) → DEVELOPING (Anubis + Verdash pre-commit) → RECORDING (Panthalus) → DONE`
 
 ### Standalone
 
@@ -28,6 +28,7 @@ These 4 skills are **not in the pipeline** — call them manually when needed (p
 | **Elphidran** | Design Architect | "design the app" / rebranding | `.palbox/design.md` — colors, typography, spacing |
 | **Astegon** | Frontend Component Architect | "componentize X" / FE rebuild | `.palbox/components/<feature>.md` — atomic component tree + SRP specs |
 | **Blazamut** | Backend Architecture Authority | "architect X" / BE rebuild | `.palbox/architectures/<feature>.md` — SOLID modules + API contracts |
+| **Verdash** | Unit Test Runner & TDD Enforcer | "test X" / pre-commit gate | `.palbox/coverage/` — test results + coverage reports |
 | **Astralym** | Orchestrator | Runs the full pipeline, tracks progress in `state.md` | `.palbox/state.md` |
 
 ### Why Standalone?
@@ -114,11 +115,14 @@ Astralym runs the full pipeline: learns the codebase → plans with your input �
 | `Elphidran: design the app` | Asks about vibe/industry → generates `.palbox/design.md` |
 | `Astegon: componentize the dashboard` | Reads design system → produces atomic component tree + SRP specs → saves `.palbox/components/` |
 | `Blazamut: architect the auth module` | Reads project context → designs SOLID modules + API contracts → saves `.palbox/architectures/` |
+| `Verdash: test the login flow` | Runs TDD cycle (RED → GREEN → REFACTOR), enforces 80% coverage, generates scaffolding |
 
 ### Standalone Flow
 
 ```
 Elphidran (design) → Astegon (FE components) + Blazamut (BE architecture)  [parallel]
+                           ↓
+                    Verdash (TDD: RED → GREEN → REFACTOR)
                            ↓
                     Jetdragon (plan) → "Gas" → Anubis (code) → Panthalus (record)
 ```
@@ -137,6 +141,7 @@ The `.palbox/` knowledge graph grows with every session:
 ├── components/              # Astegon: frontend component specs
 │   └── <feature-name>.md
 ├── architectures/           # Blazamut: backend module specs
+├── coverage/                # Verdash: test coverage reports
 │   └── <feature-name>.md
 ├── flows/                   # Feature workflow docs
 ├── plans/                   # Active plans
