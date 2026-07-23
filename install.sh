@@ -18,7 +18,7 @@ fi
 # Install each skill
 SKILLS_DIR="$(cd "$(dirname "$0")" && pwd)/skills"
 
-for skill in astralym lyleen jetdragon anubis panthalus; do
+for skill in astralym lyleen jetdragon anubis panthalus elphidran astegon blazamut verdash; do
     if [ -f "$SKILLS_DIR/$skill/SKILL.md" ]; then
         echo "📦 Installing: $skill"
         mkdir -p "$TARGET/$skill"

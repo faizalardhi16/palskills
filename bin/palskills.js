@@ -235,7 +235,7 @@ ${gitContributors ? `\n**Top Contributors:**\n\`\`\`\n${gitContributors}\n\`\`\`
 
 function generate(agent) {
   const cwd = process.cwd();
-  const skillNames = ['elphidran', 'astegon', 'blazamut', 'lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym'];
+  const skillNames = ['elphidran', 'astegon', 'blazamut', 'lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym', 'verdash'];
 
   let dir;
   if (agent === 'codex') dir = path.join(cwd, '.codex', 'skills');
@@ -671,7 +671,50 @@ pending
 \`\`\`
 
 ## Usage
-User says "Astralym: build feature X" → create state.md → run pipeline step by step → checkmark progress.`
+User says "Astralym: build feature X" → create state.md → run pipeline step by step → checkmark progress.`,
+    verdash: `---
+name: verdash
+description: "Fast, precise unit test runner — enforces TDD (RED-GREEN-REFACTOR), runs test suites with coverage, generates test scaffolding, and validates before PR."
+version: 1.0.0
+license: MIT
+---
+
+# Verdash — Unit Test Runner & TDD Enforcer
+**Agent:** ${agent === 'codex' ? 'Codex' : agent === 'cursor' ? 'Cursor' : 'Claude Code'}
+
+## Role
+Quality gate. Run tests fast, enforce TDD discipline, block code below coverage thresholds. Pre-commit validator inside Anubis, also standalone.
+
+## TDD Cycle (RED → GREEN → REFACTOR)
+1. RED: Write failing test for public API surface + edge cases + failure modes
+2. GREEN: Write ONLY enough code to pass (no refactor, no optimization)
+3. REFACTOR: Clean up, extract duplication, improve names — tests must STILL pass
+
+## Test Scaffolding
+- Python: pytest with class-based tests, AAA pattern, @pytest.mark.parametrize
+- TypeScript: Vitest with describe/it/expect, React Testing Library for components
+- Auto-detect project framework from config files
+
+## Coverage Thresholds (Hard Fail)
+| Metric     | Threshold |
+|------------|-----------|
+| Lines      | ≥ 80%     |
+| Branches   | ≥ 70%     |
+| Functions  | ≥ 80%     |
+| Statements | ≥ 80%     |
+
+## Test Quality Review
+Detects: no assertions, assertion roulette, mystery guest, slow tests, test interdependence, duplicate setup, missing edge cases, magic numbers.
+
+## Rules
+- RED first — never write implementation before failing test
+- Minimal GREEN — only enough code to pass
+- Always REFACTOR before committing
+- Coverage is non-negotiable — below threshold blocks commit
+- AAA (Arrange-Act-Assert) pattern always
+- Mock externals (DB, HTTP, FS, third-party APIs)
+- Test behavior not implementation
+- Tests are documentation — names describe expected behavior`
   };
   return skills[skill] || '';
 }
