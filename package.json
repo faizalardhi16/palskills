@@ -1,6 +1,6 @@
 {
   "name": "palskills",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "AI-powered development pipeline — 5 skills (Astralym, Lyleen, Jetdragon, Anubis, Panthalus) that work across Codex, Cursor, Claude Code, and other AI agents.",
   "keywords": [
     "hermes-agent",
