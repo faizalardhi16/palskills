@@ -1,14 +1,14 @@
 ---
 name: blazamut
-description: "Backend architecture authority — decomposes features into SOLID modules, enforces SRP at class level, and designs API contracts, data flow, and error handling before any code is written."
-version: 1.0.0
+description: "Backend architecture authority — decomposes features into SOLID modules, enforces SRP at class level, designs API contracts, ORM selection, logging strategy, data flow, and error handling before any code is written."
+version: 1.1.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [palskills, backend, architecture, SOLID, SRP, api-design, dependency-injection]
-    related_skills: [astralym, astegon, jetdragon, anubis, panthalus]
+    tags: [palskills, backend, architecture, SOLID, SRP, api-design, dependency-injection, orm, logging]
+    related_skills: [astralym, astegon, jetdragon, anubis, panthalus, verdash]
 ---
 
 # Blazamut — Backend Architecture Authority
@@ -23,14 +23,20 @@ Blazamut doesn't suggest architecture — it **decides** it. Every class has one
 
 ## Pipeline Position
 
+Blazamut is **standalone** — not part of Astralym's automated pipeline. Astralym's pipeline is:
+
 ```
-Lyleen       → CHECK_GRAPH    (palbox context)
-Elphidran    → DESIGN          (colors, typography, spacing, tokens)
-Astegon      → COMPONENTIZE    (frontend component tree + SRP)
-Blazamut     → ARCHITECT        (backend module structure + SOLID)  ← YOU ARE HERE
-Jetdragon    → PLANNING         (implementation plan, tasks)
-Anubis       → DEVELOPING       (code execution)
-Panthalus    → RECORDING        (session history)
+CHECK_GRAPH (Lyleen) → PLANNING (Jetdragon) → DEVELOPING (Anubis) → RECORDING (Panthalus) → DONE
+```
+
+DESIGN (Elphidran), COMPONENTIZE (Astegon), and ARCHITECT (Blazamut) are standalone architectural skills called **manually** for project setup or major rebuilds — not per-task. They run before or parallel to the pipeline:
+
+```
+Elphidran (DESIGN)
+       ↓
+Astegon (COMPONENTIZE) + Blazamut (ARCHITECT)   ← parallel, standalone
+       ↓
+Astralym pipeline (CHECK_GRAPH → PLANNING → DEVELOPING → RECORDING)
 ```
 
 COMPONENTIZE and ARCHITECT can run in parallel if the feature spans both frontend and backend.
@@ -38,10 +44,11 @@ COMPONENTIZE and ARCHITECT can run in parallel if the feature spans both fronten
 ## When Blazamut Runs
 
 Blazamut activates when:
-- A feature needs backend code (API endpoints, services, database changes)
+- A feature needs backend code (API endpoints, services, database changes) — backend rebuild
 - User says "Blazamut: architect X" or "design backend for Y"
-- Astralym reaches the ARCHITECT state in the pipeline
 - A backend refactor requires restructuring modules
+
+Blazamut is **standalone** — it is NOT triggered by Astralym's pipeline. Call it manually when backend architecture work is needed.
 
 ## Input Requirements
 
@@ -64,7 +71,85 @@ find . -path "*/backend/*" -name "*.py" -o -path "*/src/*" -name "*.ts" | head -
 grep -r "class.*Repository\|class.*Service\|class.*Controller" --include="*.py" --include="*.ts" | head -20
 ```
 
-### Step 2: Module Decomposition (SOLID + SRP)
+### Step 2: ORM Selection
+
+**CRITICAL: Ask the user before deciding.** Blazamut must present ORM options and let the user choose. Never auto-select without confirmation.
+
+#### Detect Current Setup
+
+```bash
+# TypeScript
+grep -E "prisma|typeorm|drizzle|knex|mikro-orm|sequelize" package.json 2>/dev/null
+
+# Python
+grep -E "sqlalchemy|django|peewee|pony|tortoise" requirements*.txt pyproject.toml 2>/dev/null
+
+# Go
+grep -E "gorm|ent|sqlx|sqlboiler|bun" go.mod 2>/dev/null
+```
+
+If an ORM is already in use → use it. Skip the selection flow. If multiple are present, note them all and ask which to standardize on.
+
+#### Offer Choices by Language
+
+Present options with **trade-offs**, not just a list. Format:
+
+```
+## ORM Selection — [Language]
+
+Current project uses: [detected ORM / none detected]
+
+| Option | Style | Best For | Trade-offs |
+|--------|-------|----------|------------|
+| ... | ... | ... | ... |
+
+Recommendation: [top pick with 1-sentence reason]
+
+Which ORM should we use?
+```
+
+**TypeScript / Node.js:**
+
+| ORM | Style | Best For | Trade-offs |
+|-----|-------|----------|------------|
+| **Prisma** | Schema-first, generated client | Type-safe queries, migrations, team consistency | Heavy codegen step, schema drift risk, less flexible for complex queries |
+| **Drizzle** | Schema-in-code, SQL-like | Max control, lightweight, serverless-friendly | Newer ecosystem, fewer community recipes |
+| **TypeORM** | Decorator-based, Active Record / Data Mapper | NestJS projects, enterprise patterns | Complex config, performance gotchas with relations, maintenance slowdown |
+| **Kysely** | Query builder, type-safe SQL | Raw SQL control with type safety | No migration tooling built-in (pair with another tool) |
+| **MikroORM** | Unit of Work, Data Mapper | Complex domain models, identity map | Learning curve, heavier than Drizzle/Prisma |
+| **Knex** | Query builder (not full ORM) | Migration runner + raw SQL, simple needs | No model layer — pair with Objection.js for full ORM |
+
+**Python:**
+
+| ORM | Style | Best For | Trade-offs |
+|-----|-------|----------|------------|
+| **SQLAlchemy 2.0** | Data Mapper + Unit of Work | Complex queries, async, industry standard | Steep learning curve, verbose model definitions |
+| **Django ORM** | Active Record (built-in) | Django projects, rapid prototyping | Django-only, N+1 query traps without select_related |
+| **Peewee** | Active Record, lightweight | Small projects, scripts, simplicity | Limited async support, less community for large apps |
+| **Tortoise ORM** | Django-style, async-native | FastAPI + async projects | Smaller ecosystem, fewer migration options |
+| **Pony ORM** | Pythonic generator syntax | Readable queries, small-medium projects | Limited async, not ideal for very complex queries |
+| **SQLModel** | SQLAlchemy + Pydantic hybrid | FastAPI + type-safe models | Tied to SQLAlchemy core, newer project |
+
+#### Anti-Patterns to Flag
+
+- Using raw SQL strings everywhere (no parameterization → SQL injection risk)
+- ORM mixed with raw queries inconsistently (pick one approach per module)
+- ORM models with business logic (break SRP — entity vs service)
+- Auto-syncing schemas in production (use explicit migrations)
+
+#### Decision Recording
+
+After user confirms, record in the architecture doc:
+
+```markdown
+## ORM Decision
+- **ORM:** Prisma v5
+- **Migration tool:** prisma migrate
+- **Schema location:** prisma/schema.prisma
+- **Why:** Type-safe client, team familiarity, good migration DX. Trade-off: schema-first codegen overhead accepted.
+```
+
+### Step 3: Module Decomposition (SOLID + SRP)
 
 Blazamut decomposes every feature into strict layers. Each layer has exactly ONE responsibility:
 
@@ -79,7 +164,7 @@ Blazamut decomposes every feature into strict layers. Each layer has exactly ONE
 | **Middleware** | Cross-cutting ONLY | Auth, logging, rate limiting. Never business-specific. | `authMiddleware`, `rateLimiter` |
 | **Util/Helper** | Pure functions ONLY | Stateless transformations. Never side effects. | `hashPassword(plain)`, `generateToken(user)` |
 
-### Step 3: Class Specification
+### Step 4: Class Specification
 
 For every class, Blazamut produces a specification card:
 
@@ -93,6 +178,7 @@ For every class, Blazamut produces a specification card:
   | UserRepository | IUserRepository | Find user by email |
   | PasswordHasher | IPasswordHasher | Verify password |
   | TokenGenerator | ITokenGenerator | Create JWT |
+  | Logger | ILogger | Structured audit logging |
 - **Public Methods:**
   | Method | Input | Output | Description |
   |--------|-------|--------|-------------|
@@ -113,7 +199,7 @@ For every class, Blazamut produces a specification card:
 ### Class: UserRepository
 - **Layer:** Repository
 - **Single Responsibility:** Persist and retrieve User entities
-- **Dependencies:** DatabaseConnection (injected)
+- **Dependencies:** DatabaseConnection (injected), Logger (injected)
 - **Public Methods:**
   | Method | Input | Output |
   |--------|-------|--------|
@@ -127,7 +213,7 @@ For every class, Blazamut produces a specification card:
   - Return HTTP responses (controller's job)
 ```
 
-### Step 4: Dependency Graph
+### Step 5: Dependency Graph
 
 Blazamut designs the dependency injection tree:
 
@@ -137,8 +223,9 @@ AuthController
         ├── UserRepository (IUserRepository)
         │     └── DatabaseConnection
         ├── PasswordHasher (IPasswordHasher)
-        └── TokenGenerator (ITokenGenerator)
-              └── JWT_SECRET (config)
+        ├── TokenGenerator (ITokenGenerator)
+        │     └── JWT_SECRET (config)
+        └── Logger (ILogger)              ← injected everywhere
 
 Dependency Rule:
   Controller → Service → Repository → Database
@@ -146,7 +233,7 @@ Dependency Rule:
   Inner layers NEVER depend on outer layers. (Dependency Inversion)
 ```
 
-### Step 5: API Contract
+### Step 6: API Contract
 
 For every endpoint, Blazamut specifies the full contract:
 
@@ -174,7 +261,103 @@ For every endpoint, Blazamut specifies the full contract:
 - **Rate Limit:** 5 requests/minute per IP
 ```
 
-### Step 6: Error Handling Strategy
+### Step 7: Logging Strategy
+
+Blazamut designs a structured logging strategy as a cross-cutting concern. Logger is injected into every class that needs observability (Controller, Service, Repository, Middleware).
+
+#### Logging Levels & When to Use
+
+| Level | When to Use | Example |
+|-------|-------------|---------|
+| **ERROR** | Operation failed, needs immediate attention | DB connection lost, 3rd-party API down, unhandled exception |
+| **WARN** | Something unexpected but system recovered | Rate limit hit, fallback used, deprecated API called, retry succeeded |
+| **INFO** | Key business events, lifecycle milestones | User logged in, order placed, payment processed, deployment |
+| **DEBUG** | Diagnostic info useful during development | SQL queries, request/response bodies, cache hits/misses |
+| **TRACE** | Extremely detailed, per-function tracing | Function entry/exit, variable values, loop iterations |
+
+#### What to Log on Every Request (Middleware)
+
+```markdown
+## Request/Response Logging (Middleware-level)
+
+Every HTTP request MUST log:
+- **request_id** (UUID, generated at entry)
+- **method**, **path**, **status_code**
+- **duration_ms** (response time)
+- **user_id** (if authenticated, else "anonymous")
+- **ip** (client IP)
+- **user_agent** (truncated to 200 chars)
+
+Example (structured JSON):
+```json
+{
+  "level": "INFO",
+  "request_id": "a1b2c3d4",
+  "method": "POST",
+  "path": "/api/auth/login",
+  "status_code": 200,
+  "duration_ms": 47,
+  "user_id": "anonymous",
+  "ip": "192.168.1.1",
+  "timestamp": "2026-07-23T08:00:00.000Z"
+}
+```
+
+#### What to Log in Services
+
+- **Business events:** "order.created", "user.registered", "payment.completed"
+- **Input params at DEBUG:** sanitized (strip passwords, tokens, PII)
+- **External calls:** start/end with duration, success/failure
+- **Decisions:** "using cache", "fallback to secondary DB"
+
+#### What NEVER to Log
+
+- Passwords, tokens, API keys, secrets (even hashed)
+- Full credit card numbers (mask to last 4 digits: `****1234`)
+- Personal data unless required by business logic + compliant (GDPR considerations)
+- Full request/response bodies in production (DEBUG only, and even then sanitize)
+
+#### Logger Configuration Template
+
+```markdown
+## Logger Setup
+
+**Library:** [pino (Node) / structlog (Python) / zap (Go)]
+
+**Transports:**
+- **stdout:** JSON format (for log aggregators: Datadog, CloudWatch, ELK)
+- **file (optional):** `/var/log/app/error.log` — ERROR only, plain text
+- **file (optional):** `/var/log/app/combined.log` — INFO+, rotated daily
+
+**Context injection:** Logger created per-request with `request_id` and `user_id` injected at middleware level. All downstream logs automatically carry these fields.
+
+**Production settings:**
+- Log level: INFO (configurable via `LOG_LEVEL` env var)
+- Redaction: auto-mask fields matching `password`, `token`, `secret`, `authorization`
+- Sampling: no sampling at ERROR/WARN; sample 10% of DEBUG in high-traffic services
+```
+
+#### Per-Language Recommendations
+
+| Language | Library | Why |
+|----------|---------|-----|
+| TypeScript | **pino** | Fastest Node logger, structured JSON, redaction via pino-noir, request-id via pino-http |
+| Python | **structlog** | Structured logging for Python, builds on stdlib logging, contextvars for request-scoped context |
+| Go | **zap** | Uber's fast structured logger, JSON encoder, sampling built in |
+| Rust | **tracing** | Tokio-native, spans + structured events, instrument macros |
+
+#### Decision Recording
+
+```markdown
+## Logging Decision
+- **Library:** pino + pino-http
+- **Level:** INFO (production), DEBUG (development)
+- **Format:** JSON to stdout, plain text to error file
+- **Redaction:** pino-noir for password/token/secret fields
+- **Request context:** request_id + user_id injected via async_hooks middleware
+```
+
+### Step 8: Error Handling Strategy
 
 Blazamut designs the error hierarchy:
 
@@ -196,12 +379,13 @@ AppException (base)
 
 ## Global Error Handler
 - Catches all AppException subclasses → maps to HTTP status
-- Unknown exceptions → 500 with generic message (log full stacktrace)
+- Unknown exceptions → 500 with generic message (log full stacktrace at ERROR level)
 - Validation errors → 400 with field-level details
+- EVERY error path logs: request_id, exception type, sanitized message, stacktrace (DEBUG level)
 - NEVER leak stacktraces or internal details to client
 ```
 
-### Step 7: Database Decisions
+### Step 9: Database Decisions
 
 If the feature requires schema changes:
 
@@ -224,7 +408,7 @@ If the feature requires schema changes:
 - Cron job: DELETE FROM password_resets WHERE expires_at < NOW() - INTERVAL '7 days'
 ```
 
-### Step 8: Write Architecture Document
+### Step 10: Write Architecture Document
 
 Save to `.palbox/architectures/<feature-name>.md`:
 
@@ -232,7 +416,13 @@ Save to `.palbox/architectures/<feature-name>.md`:
 # Backend Architecture: [Feature Name]
 **Date:** YYYY-MM-DD
 **Author:** Blazamut (palskills)
-**Tech Stack:** [language, framework, database]
+**Tech Stack:** [language, framework, database, ORM]
+
+## ORM Decision
+[From Step 2]
+
+## Logging Strategy
+[From Step 7]
 
 ## Module Structure
 ```
@@ -250,27 +440,31 @@ src/
 ├── entities/
 │   └── User.ts
 ├── middleware/
-│   └── authMiddleware.ts
+│   ├── authMiddleware.ts
+│   ├── requestLogger.ts
+│   └── errorHandler.ts
 ├── exceptions/
 │   └── AuthExceptions.ts
+├── logging/
+│   └── logger.ts
 └── utils/
     └── TokenGenerator.ts
 ```
 
 ## Class Specifications
-[All cards from Step 3]
+[All cards from Step 4]
 
 ## Dependency Graph
-[Tree from Step 4]
+[Tree from Step 5]
 
 ## API Contract
-[All endpoints from Step 5]
+[All endpoints from Step 6]
 
 ## Error Handling
-[Hierarchy from Step 6]
+[Hierarchy from Step 8]
 
 ## Database Changes
-[Schema from Step 7, if applicable]
+[Schema from Step 9, if applicable]
 
 ## Related
 - [[architecture]] — project structure
@@ -278,12 +472,14 @@ src/
 - [[components/<feature>]] — frontend components (if Astegon ran)
 ```
 
-### Step 9: Report
+### Step 11: Report
 
 ```
 ## Blazamut Backend Architecture ✓
 
 **Feature:** [Feature Name]
+**ORM:** [selected ORM]
+**Logger:** [selected logging library]
 **Modules designed:** [N] (Controllers: X, Services: Y, Repositories: Z, Validators: W)
 **Endpoints specified:** [N]
 **New database tables:** [N]
@@ -320,7 +516,9 @@ Before finalizing, Blazamut must verify every class:
 4. **Interface for every dependency** — inject abstractions, not concretions
 5. **API contract first** — spec the endpoint before implementations
 6. **Error hierarchy** — typed exceptions, never raw strings
-7. **Save to `.palbox/architectures/`** — one file per feature
-8. **Reuse before create** — scan existing before designing new
-9. **No class exceeds 200 lines** — split before it grows
-10. **Hand off to Jetdragon** — architecture doc becomes input for implementation planning
+7. **ORM must be explicitly chosen by user** — present options with trade-offs, never auto-select
+8. **Structured logging everywhere** — every class that does I/O gets a Logger injected
+9. **Save to `.palbox/architectures/`** — one file per feature
+10. **Reuse before create** — scan existing before designing new
+11. **No class exceeds 200 lines** — split before it grows
+12. **Hand off to Jetdragon** — architecture doc becomes input for implementation planning
