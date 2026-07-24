@@ -1,7 +1,7 @@
 ---
 name: elphidran
-description: "Design system recommender — analyzes the project and generates a design.md with base colors, typography, spacing, and UI patterns for Anubis to apply during development."
-version: 1.0.0
+description: "Design system recommender — analyzes the project and generates a design/ folder with _global.md (shared tokens) + per-module design files. Supports module-scoped palettes, typography, and component patterns."
+version: 2.0.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
@@ -13,7 +13,21 @@ metadata:
 
 # Elphidran — Design System Recommender
 
-Elphidran is the **design architect** of the palskills system. When loaded, it analyzes the project's nature and generates a `design.md` file — a complete design system specification that **Anubis** reads when implementing any UI component. This ensures visual consistency across the entire application.
+Elphidran is the **design architect** of the palskills system. When loaded, it analyzes the project's nature and generates a `design/` folder — a complete design system specification that **Anubis** reads when implementing any UI component. This ensures visual consistency across the entire application.
+
+### Output Structure (v2.0.0)
+
+Instead of a single `design.md`, Elphidran generates a **folder-based design system**:
+
+```
+.palbox/design/
+├── _global.md          ← Shared tokens: colors, typography, spacing, shadows, radius
+├── <module-1>.md       ← Module-scoped palette + component patterns
+├── <module-2>.md       ← Module-scoped palette + component patterns
+└── ...
+```
+
+**`_global.md`** contains tokens shared across ALL modules — the core design language. **Per-module files** extend it with module-specific color palettes, KPI card styles, chart colors, and widget patterns unique to that module.
 
 ## When Elphidran Runs
 
@@ -48,16 +62,30 @@ Elphidran asks the user design-oriented questions to tailor the system:
 4. **Dark mode:** "Need dark mode support? (yes / light-only / dark-first)"
 5. **Audience:** "Who uses this? (internal team, public consumers, enterprise clients)"
 
-### Step 3: Generate design.md
+### Step 2b: Discover Modules
 
-Based on analysis + user answers, create `.palbox/design.md`:
+**NEW in v2.0.0:** After general questions, Elphidran asks about modules:
+
+> "How many modules/sections does this app have? List their names so I can generate scoped design files. Examples: 'export, import, ftz01, ftz03, surat-kuasa'"
+
+**Why:** Each module may need:
+- Its own color accent (for visual distinction in dashboards)
+- Module-specific component patterns (KPI cards, tables, charts)
+- Unique widget layouts
+
+But all modules share the **same core design language** (typography, spacing, radius, shadows) from `_global.md`.
+
+### Step 3: Generate `_global.md`
+
+Generate `.palbox/design/_global.md` — shared across ALL modules:
 
 ```markdown
-# Design System
+# Global Design System
 **Generated:** YYYY-MM-DD
 **Architect:** Elphidran (Palskills)
 **Vibe:** [chosen vibe]
 **Dark Mode:** [yes/no]
+**Scope:** Shared across all modules — extends from [[_global]]
 
 ## Color Palette
 
@@ -137,7 +165,7 @@ Based on analysis + user answers, create `.palbox/design.md`:
 | `shadow-lg` | 0 10px 15px rgba(0,0,0,0.1) | Modals |
 | `shadow-xl` | 0 20px 25px rgba(0,0,0,0.15) | Drawers, slideovers |
 
-## Component Patterns
+## Shared Component Patterns
 
 ### Buttons
 - **Primary:** `bg-primary text-white rounded-md px-4 py-2 hover:bg-primary-hover`
@@ -151,11 +179,6 @@ Based on analysis + user answers, create `.palbox/design.md`:
 - **Focus:** `border-primary ring-2 ring-primary-light outline-none`
 - **Error:** `border-error ring-2 ring-red-100`
 - **Disabled:** `bg-gray-50 text-text-secondary cursor-not-allowed`
-
-### Cards
-- `bg-surface rounded-md shadow-sm border border-border p-4`
-- Card header: `text-lg font-semibold mb-2`
-- Card body: `text-sm text-text-secondary`
 
 ### Layout
 - Max content width: 1200px
@@ -173,18 +196,88 @@ When implementing UI with this design system:
 6. **Consistent patterns.** Buttons always look like buttons. Inputs always look like inputs.
 ```
 
-### Step 4: Report
+### Step 4: Generate Per-Module Design Files
+
+For each module the user listed in Step 2b, create `.palbox/design/<module>.md`. These extend `_global.md` — they should NOT repeat shared tokens. Only module-specific additions:
+
+```markdown
+# [Module Name] — Design Extensions
+**Parent:** [[_global]]
+**Module:** [module-name]
+**Generated:** YYYY-MM-DD
+
+## Module Accent Color
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `module-primary` | #... | Module-specific accent — used in sidebar, tab indicator, widget headers |
+| `module-light` | #... | Module tag background, selected state |
+| `module-dark` | #... | Module hover/active states |
+
+## Chart & Data Colors
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `chart-1` | #... | Primary metric |
+| `chart-2` | #... | Secondary metric |
+| `chart-3` | #... | Tertiary metric |
+| `chart-4` | #... | Quaternary metric |
+
+## Module-Specific Components
+
+### KPI Card
+- **Style:** `bg-surface rounded-lg shadow-sm border-l-4 border-l-[module-primary] p-4`
+- **Value:** `text-3xl font-bold text-text-primary`
+- **Label:** `text-sm text-text-secondary uppercase tracking-wide`
+- **Trend:** `text-sm flex items-center gap-1` (up=success green, down=error red)
+
+### Module Widget
+- **Header:** `text-lg font-semibold text-text-primary flex items-center gap-2`
+- **Container:** `bg-surface rounded-md shadow-sm border border-border p-4`
+- **Module badge:** `bg-module-light text-module-primary text-xs rounded-full px-2 py-0.5`
+
+### Data Table (if applicable)
+- **Header row:** `bg-gray-50 dark:bg-gray-800 text-xs uppercase text-text-secondary`
+- **Row hover:** `hover:bg-primary-light/30 transition-colors`
+- **Cell:** `text-sm p-3 border-b border-border`
+
+## Unique Patterns for This Module
+
+[Describe any layout, interaction, or visualization patterns unique to this module.
+Examples: timeline view, kanban board, approval workflow, batch operations, etc.]
+```
+
+**Module-specific rules:**
+1. Each module file starts with `**Parent:** [[_global]]` — all shared tokens are inherited
+2. Module accent colors should be visually distinct from each other (use `clarify()` if uncertain)
+3. Chart colors must be colorblind-friendly where possible
+4. Only document patterns that are UNIQUE to this module — shared patterns live in `_global.md`
+
+### Step 5: Report
 
 ```
-## Design System Generated
+## Design System Generated (v2.0.0)
 
-**File:** .palbox/design.md
+**Folder:** .palbox/design/
+**Global:** _global.md (shared tokens)
+**Modules:** [N] files generated
+  - [[design/export]]   — accent: #...
+  - [[design/import]]   — accent: #...
+  - [[design/ftz03]]    — accent: #...
+  ...
+
 **Palette:** [primary color] based on [vibe/industry]
 **Font:** [font family]
 **Dark mode:** [yes / light-only]
 
-Anubis will now use these tokens when building UI components.
+Anubis will now use [[_global]] + [[design/<module>]] when building UI components.
 ```
+
+### Step 6: Update Palbox Graph
+
+After generating all files, ensure `[[wikilinks]]` are wired:
+
+1. `_global.md` — linked from `README.md` and all module files
+2. Each module file — backlinked to `_global.md` and referenceable from `flows/` and `components/`
+3. Astralym's CHECK_GRAPH (Lyleen) will pick up these nodes on next run
 
 ## Design Recommendations by Industry
 
@@ -205,8 +298,12 @@ Elphidran has opinionated defaults per industry:
 ## Rules
 
 1. **Always ask questions** — don't assume colors/vibes
-2. **Generate design.md** — not just verbal recommendations
-3. **Use design tokens** — never raw values in the spec
-4. **Anubis-aware** — every section includes implementation notes
-5. **One design system per project** — update, don't duplicate
-6. **Respect existing** — if the project already has a design system, study and extend it
+2. **Always ask for modules** — don't assume single design file; every project has sections
+3. **_global.md first** — shared tokens before per-module files
+4. **Module files extend, don't repeat** — they start with `**Parent:** [[_global]]` and only add module-unique tokens
+5. **Use design tokens** — never raw values in the spec
+6. **Anubis-aware** — every section includes implementation notes
+7. **One design folder per project** — update files, don't duplicate
+8. **Respect existing** — if `design/` already exists, ask before overwriting
+9. **Module accents must be distinct** — each module gets a visually different accent color for dashboard differentiation
+10. **Wikilinks are first-class** — every file uses `[[wikilinks]]` for graph traversal
