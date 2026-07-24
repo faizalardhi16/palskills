@@ -1,14 +1,14 @@
 ---
 name: jetdragon
-description: "Planning specialist — asks clarifying questions, generates detailed plans with [[wikilinks]] to palbox context, and produces Codex-ready prompts."
-version: 1.1.0
+description: "Planning specialist — asks clarifying questions, generates detailed plans with [[wikilinks]] to palbox context, queries CBM for real codebase insights when available, and produces Codex-ready prompts."
+version: 2.0.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [palskills, planning, clarification, wikilinks, knowledge-graph]
-    related_skills: [astralym, lyleen, anubis, panthalus]
+    tags: [palskills, planning, clarification, wikilinks, knowledge-graph, cbm]
+    related_skills: [astralym, lyleen, anubis, panthalus, blazamut, astegon]
 ---
 
 # Jetdragon — Planning & Clarification
@@ -38,20 +38,108 @@ Seed: [[flows/auth-login]]
   └── [[history/2026-06-28-session-store]] → Session storage refactor
 ```
 
-### Step 2: Generate Initial Plan with Wikilinks
+### Step 2: Codebase Analysis (NEW in v2.0.0)
 
+Before generating a plan, Jetdragon MUST analyze the actual codebase. The depth depends on what's available.
+
+#### Tier 1: CBM + Standalone Skills Ran (highest confidence)
+When **Blazamut** and/or **Astegon** already ran and produced outputs:
+
+```
+┌─────────────────────────────────────────────┐
+│  CONFIDENCE: 95% ████████████████████████░  │
+│                                             │
+│  Blazamut output checked:                   │
+│    ✓ API contracts from .palbox/architectures/│
+│    ✓ Class hierarchy verified via CBM       │
+│    ✓ Route list cross-checked               │
+│                                             │
+│  Astegon output checked:                    │
+│    ✓ Component tree from .palbox/components/ │
+│    ✓ Existing patterns mapped               │
+│                                             │
+│  Plan based on: REAL architecture + docs    │
+└─────────────────────────────────────────────┘
+```
+
+**Action:**
+1. Read Blazamut output: `.palbox/architectures/*.md`
+2. Read Astegon output: `.palbox/components/*.md`
+3. Quick CBM cross-check: `get_architecture` → verify no staleness
+4. If mismatch found → flag to user, ask whether to trust docs or CBM
+
+#### Tier 2: CBM Available, Standalone Skipped (good confidence)
+
+When user skipped Design/Architect/Componentize but CBM is running:
+
+```
+┌─────────────────────────────────────────────┐
+│  CONFIDENCE: 85% █████████████████████░░░░  │
+│                                             │
+│  Jetdragon queries CBM directly:            │
+│    → get_architecture    (overview)         │
+│    → search_graph        (relevant fns)     │
+│    → trace_path          (impact analysis)  │
+│                                             │
+│  Plan based on: CBM code graph + palbox docs│
+└─────────────────────────────────────────────┘
+```
+
+**Action (3-5 CBM queries, each <1ms):**
+
+| # | Tool | Query | Purpose |
+|---|------|-------|---------|
+| 1 | `get_architecture` | Full architecture overview | Classes, routes, module structure, cross-service links |
+| 2 | `search_graph` | `label="Function"` or `name_pattern="*<feature>*"` | Find relevant functions/methods |
+| 3 | `trace_path` | Key functions (inbound/outbound) | Understand call chains and impact scope |
+| 4 | `search_graph` | `label="Endpoint"` (if web app) | Discover HTTP routes related to the feature |
+| 5 | `get_code_snippet` | Critical functions identified above | Read exact signatures when ambiguous |
+
+**Rules:**
+- Run queries 1-2 FIRST. Queries 3-5 only if context is still ambiguous.
+- If codebase is small (<100 files), skip queries 4-5 — query 1-3 is enough.
+- All queries are sub-millisecond. Even 5 queries = <2 seconds total.
+
+#### Tier 3: No CBM (fallback — reduced confidence)
+
+```
+┌─────────────────────────────────────────────┐
+│  CONFIDENCE: 70% ██████████████░░░░░░░░░░░  │
+│                                             │
+│  ⚠️  No CBM detected — grep/read manual     │
+│                                             │
+│  Plan based on: palbox docs + file scanning  │
+│  RISK: possible missed dependencies         │
+└─────────────────────────────────────────────┘
+```
+
+**Action:**
+1. Grep/read relevant files manually
+2. Flag to user: *"⚠️ Plan ini confidence 70% tanpa CBM. Ada kemungkinan dependensi kelewat. Lanjut atau mau index dulu?"*
+3. If user says "lanjut" → proceed with plan, add `## CBM Status: UNAVAILABLE — verify during development` to the plan
+4. If user says "index dulu" → wait for CBM setup, restart from Tier 2
+
+### Step 3: Generate Initial Plan with Wikilinks
+
+Create `.palbox/plans/YYYY-MM-DD-feature-name.md`:
 Create `.palbox/plans/YYYY-MM-DD-feature-name.md`:
 
 ```markdown
 # Plan: [Feature Name]
 **Date:** YYYY-MM-DD
 **Status:** DRAFT — awaiting user feedback
+**CBM:** [ACTIVE / UNAVAILABLE]
+**Confidence:** [95% / 85% / 70%]
 
 ## Knowledge Graph Context
 - [[flows/auth-login]] — This plan extends the auth flow
 - [[architecture]] — Relevant module: `src/auth/`
 - [[methods]] — Follows JWT conventions
-- [[history/2026-07-10-jwt-refresh]] — Builds on previous JWT work
+
+## Codebase Analysis (CBM)
+[If Tier 1:] Blazamut/Astegon output verified via `get_architecture` — no staleness.
+[If Tier 2:] Queried `search_graph`, `get_architecture`, `trace_path` → [N] functions, [M] routes found.
+[If Tier 3:] ⚠️ No CBM — manual grep. Verify during development.
 
 ## Overview
 [2-3 sentences describing what will be built]
@@ -60,6 +148,11 @@ Create `.palbox/plans/YYYY-MM-DD-feature-name.md`:
 - **In scope:** ...
 - **Out of scope:** ...
 
+## Impact Analysis
+[If CBM available:] `trace_path` shows [N] callers of [target function]. Changes affect:
+  - `src/module/x.py` → `functionA()`
+  - `src/module/y.py` → `classB.method()`
+
 ## Tasks (ordered)
 ### Task 1: [Name]
 - **What:** ...
@@ -67,15 +160,15 @@ Create `.palbox/plans/YYYY-MM-DD-feature-name.md`:
 - **Linked context:** [[architecture]], [[methods]]
 - **Verification:** ...
 
-### Task 2: [Name]
-...
-
 ## Open Questions
 1. ???
 2. ???
 ```
+1. ???
+2. ???
+```
 
-### Step 3: Ask Clarifying Questions
+### Step 4: Ask Clarifying Questions
 
 Jetdragon **must** ask when ambiguous. Categories:
 - **Scope** — "Should this also handle X?"
@@ -84,13 +177,13 @@ Jetdragon **must** ask when ambiguous. Categories:
 - **Integration** — "Does this need to integrate with [[flows/payment]]?"
 - **Priority** — "Which task first?"
 
-### Step 4: Iterate Until Clear
+### Step 5: Iterate Until Clear
 
 Cycle: user responds → Jetdragon updates plan → asks more → repeat.
 
 Ends when: user says **"Gas"**, **"Go"**, **"Execute"**.
 
-### Step 5: Finalize & Hand Off
+### Step 6: Finalize & Hand Off
 
 - Status → `APPROVED`
 - Add `## Codex Prompt` section (self-contained, English, includes linked context summaries)
@@ -106,13 +199,18 @@ Every plan includes a **Codex Prompt** section:
 [Self-contained prompt in English]
 
 Context from palbox:
-- Architecture: [[architecture]] → auth module in src/auth/, uses Repository pattern
-- Methods: [[methods]] → JWT with refresh tokens, pytest for testing
-- Past work: [[history/2026-07-10-jwt-refresh]] → existing refresh rotation logic
+- Architecture: [[architecture]] → auth module in src/auth/
+- Methods: [[methods]] → JWT with refresh tokens
+
+Codebase analysis (CBM):
+[If Tier 1:] Architecture verified: [N] classes, [M] routes. See [[architectures/feature]].
+[If Tier 2:] CBM queries returned [N] functions, [M] routes. Impact: [list].
+[If Tier 3:] ⚠️ No CBM — verify during development.
 
 Task: [what to build]
 SOLID + SRP requirements: [enforced]
 Files: [list]
+Impact scope: [from trace_path if available]
 Verification: [criteria]
 ```
 
@@ -125,3 +223,6 @@ Verification: [criteria]
 5. **One plan per feature**
 6. **Always include Codex Prompt** — Anubis needs it
 7. **Link context, don't repeat** — use `[[wikilinks]]` instead of copy-pasting
+8. **CBM-aware planning** — query CBM at the right tier before generating plan
+9. **Always state confidence** — 95% (Tier 1), 85% (Tier 2), 70% (Tier 3) — so user knows how much to trust the plan
+10. **Tier 3 requires explicit user approval** — "Plan confidence 70%. Lanjut?" before proceeding
