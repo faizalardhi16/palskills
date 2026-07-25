@@ -1,13 +1,13 @@
 ---
 name: astegon
-description: "Frontend component architect — decides component hierarchy, enforces SRP, and provides structured component specifications before any code is written."
-version: 1.0.0
+description: "Frontend component architect — decides component hierarchy, enforces SRP, and provides structured component specifications. Uses CBM for real codebase analysis before designing."
+version: 1.1.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [palskills, frontend, components, SRP, architecture, atomic-design]
+    tags: [palskills, frontend, components, SRP, architecture, atomic-design, cbm]
     related_skills: [astralym, elphidran, jetdragon, anubis, panthalus]
 ---
 
@@ -47,6 +47,77 @@ Before Astegon can work, it needs:
 2. **Design system** — `.palbox/design.md` (colors, typography, spacing, tokens) from Elphidran
 3. **Architecture context** — `.palbox/architecture.md` (tech stack, folder structure)
 4. **Existing components** — scan the codebase for existing components to reuse
+
+## Codebase Analysis (CBM) — NEW in v1.1.0
+
+Astegon MUST analyze the actual codebase before deciding component architecture. Without CBM, it can only see what `find *.tsx` returns — missing component usage patterns, prop chains, and which pages already consume which components.
+
+### Tier 1: CBM + Design System (highest confidence)
+
+When `.palbox/design.md` exists AND CBM is running:
+
+```
+┌─────────────────────────────────────────────┐
+│  CONFIDENCE: 95% ████████████████████████░  │
+│                                             │
+│  Astegon queries CBM:                       │
+│    → get_architecture    (page routes)      │
+│    → search_graph        (all components)   │
+│    → trace_path          (component usage)  │
+│                                             │
+│  Architecture based on: REAL component graph│
+└─────────────────────────────────────────────┘
+```
+
+**Action (5 CBM queries, each <1ms):**
+
+| # | Tool | Query | Purpose |
+|---|------|-------|---------|
+| 1 | `get_architecture` | Full frontend overview | Page routes, component count, folder structure |
+| 2 | `search_graph` | `label="Component"` or `file_pattern="*.tsx"` | All existing components — atomic levels, locations |
+| 3 | `trace_path` | Key components (outbound — what do they import?) | Understand existing component dependency chains |
+| 4 | `trace_path` | Key components (inbound — who uses them?) | Which pages/routes consume each component |
+| 5 | `get_code_snippet` | Critical components from query 2 | Read exact props interfaces before designing extensions |
+
+**Rules:**
+- Run queries 1-3 FIRST. Queries 4-5 only for complex features or large component trees.
+- If project has <30 components, queries 1-3 is enough.
+- Component reuse is mandatory — Astegon must prefer existing components over new ones.
+
+### Tier 2: CBM Only (good confidence)
+
+When CBM is running but design system is incomplete:
+
+```
+┌─────────────────────────────────────────────┐
+│  CONFIDENCE: 85% █████████████████████░░░░  │
+│                                             │
+│  Same 5 CBM queries.                        │
+│  Architecture based on: CBM component graph │
+│  RISK: design tokens may not match          │
+└─────────────────────────────────────────────┘
+```
+
+Note: Astegon still needs `.palbox/design.md` for tokens. If missing, ask user to run Elphidran before proceeding.
+
+### Tier 3: No CBM (fallback — reduced confidence)
+
+```
+┌─────────────────────────────────────────────┐
+│  CONFIDENCE: 70% ██████████████░░░░░░░░░░░  │
+│                                             │
+│  ⚠️  No CBM detected — find/grep manual     │
+│                                             │
+│  Architecture based on: design.md + find    │
+│  RISK: unknown component dependencies       │
+└─────────────────────────────────────────────┘
+```
+
+**Action:**
+1. Manual `find *.tsx` + `grep` for component patterns (current behavior)
+2. Flag to user: *"⚠️ Component confidence 70% without CBM. Unknown which pages already consume these components. Continue or index first?"*
+3. If user says "continue" → add `## CBM Status: UNAVAILABLE — verify component usage during development` to component spec
+4. If user says "index first" → wait for CBM setup, restart from Tier 2
 
 ## How It Works
 

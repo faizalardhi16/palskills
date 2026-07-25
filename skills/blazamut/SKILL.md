@@ -1,13 +1,13 @@
 ---
 name: blazamut
-description: "Backend architecture authority — decomposes features into SOLID modules, enforces SRP at class level, designs API contracts, ORM selection, logging strategy, data flow, and error handling before any code is written."
-version: 1.1.0
+description: "Backend architecture authority — decomposes features into SOLID modules, enforces SRP at class level, designs API contracts, ORM selection, logging strategy, data flow, and error handling. Uses CBM for real codebase analysis before designing."
+version: 1.2.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [palskills, backend, architecture, SOLID, SRP, api-design, dependency-injection, orm, logging]
+    tags: [palskills, backend, architecture, SOLID, SRP, api-design, dependency-injection, orm, logging, cbm]
     related_skills: [astralym, astegon, jetdragon, anubis, panthalus, verdash]
 ---
 
@@ -57,6 +57,76 @@ Before Blazamut can work, it needs:
 2. **Architecture context** — `.palbox/architecture.md` (tech stack, folder structure)
 3. **Methods** — `.palbox/methods.md` (conventions, patterns used)
 4. **Existing code** — scan backend directory for existing modules to reuse/extend
+
+## Codebase Analysis (CBM) — NEW in v1.2.0
+
+Blazamut MUST analyze the actual codebase before designing architecture. A blind architecture based on docs alone risks missing dependencies, duplicating existing patterns, or designing against stale documentation.
+
+### Tier 1: CBM + Palbox Docs (highest confidence)
+
+When palbox docs exist AND CBM is running:
+
+```
+┌─────────────────────────────────────────────┐
+│  CONFIDENCE: 95% ████████████████████████░  │
+│                                             │
+│  Blazamut queries CBM:                      │
+│    → get_architecture    (module overview)  │
+│    → search_graph        (existing classes) │
+│    → trace_path          (dependency chains)│
+│                                             │
+│  Architecture based on: REAL code graph     │
+└─────────────────────────────────────────────┘
+```
+
+**Action (5 CBM queries, each <1ms):**
+
+| # | Tool | Query | Purpose |
+|---|------|-------|---------|
+| 1 | `get_architecture` | Full backend overview | Module structure, class count, existing SOLID layers |
+| 2 | `search_graph` | `label="Class"` | All existing classes — what to reuse, what to extend |
+| 3 | `search_graph` | `name_pattern="*Service*" OR name_pattern="*Repository*" OR name_pattern="*Controller*"` | Existing service/repository/controller patterns |
+| 4 | `trace_path` | Key classes (inbound) | Who depends on existing classes — impact scope |
+| 5 | `get_code_snippet` | Critical classes from query 2-3 | Read exact signatures before designing extensions |
+
+**Rules:**
+- Run queries 1-3 FIRST. Queries 4-5 only if codebase is large or complex.
+- If codebase is small (<100 files), queries 1-3 is enough.
+
+### Tier 2: CBM Only (good confidence)
+
+When CBM is running but palbox docs are limited or suspect:
+
+```
+┌─────────────────────────────────────────────┐
+│  CONFIDENCE: 85% █████████████████████░░░░  │
+│                                             │
+│  Same 5 CBM queries.                        │
+│  Architecture based on: CBM code graph      │
+│  RISK: conventions may not match docs       │
+└─────────────────────────────────────────────┘
+```
+
+No palbox verification — trust the code graph directly.
+
+### Tier 3: No CBM (fallback — reduced confidence)
+
+```
+┌─────────────────────────────────────────────┐
+│  CONFIDENCE: 70% ██████████████░░░░░░░░░░░  │
+│                                             │
+│  ⚠️  No CBM detected — grep/read manual     │
+│                                             │
+│  Architecture based on: palbox + grep       │
+│  RISK: missed dependencies, wrong patterns  │
+└─────────────────────────────────────────────┘
+```
+
+**Action:**
+1. Manual grep for class/function definitions (current behavior)
+2. Flag to user: *"⚠️ Architecture confidence 70% without CBM. Some dependencies may be missed. Continue or index first?"*
+3. If user says "continue" → add `## CBM Status: UNAVAILABLE — verify during development` to architecture doc
+4. If user says "index first" → wait for CBM setup, restart from Tier 2
 
 ## How It Works
 
