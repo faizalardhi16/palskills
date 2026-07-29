@@ -110,11 +110,15 @@ impl AppState {
             cbm: Option<cbm_bridge::CbmContext>,
             total_nodes: usize,
             total_symbols: usize,
+            total_files: usize,
+            context_source: String,
         }
 
         let output = ContextOutput {
             total_nodes: palbox.as_ref().map(|p| p.seeds.len() + p.neighbors.len()).unwrap_or(0),
             total_symbols: cbm.as_ref().map(|c| c.symbols.len()).unwrap_or(0),
+            total_files: cbm.as_ref().map(|c| c.files.len()).unwrap_or(0),
+            context_source: cbm.as_ref().map(|c| c.source.clone()).unwrap_or_default(),
             palbox,
             cbm,
         };
