@@ -235,7 +235,7 @@ ${gitContributors ? `\n**Top Contributors:**\n\`\`\`\n${gitContributors}\n\`\`\`
 
 function generate(agent) {
   const cwd = process.cwd();
-  const skillNames = ['elphidran', 'astegon', 'blazamut', 'lyleen', 'jetdragon', 'anubis', 'panthalus', 'astralym', 'verdash'];
+  const skillNames = ['elphidran', 'astegon', 'blazamut', 'grizzbolt', 'lyleen', 'jetdragon', 'anubis', 'panthalus', 'quivern', 'astralym', 'verdash'];
 
   let dir;
   if (agent === 'codex') dir = path.join(cwd, '.codex', 'skills');
