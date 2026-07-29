@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Palskills Engine Dashboard</title>
+<style>
+:root {
+  --bg: #0a0e17;
+  --surface: #111827;
+  --border: #1e293b;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --accent: #3b82f6;
+  --green: #22c55e;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --purple: #a855f7;
+  --cyan: #06b6d4;
+  --orange: #f97316;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; overflow:hidden; height:100vh; }
+#app { display:grid; grid-template-columns:280px 1fr 300px; grid-template-rows:auto 1fr auto; height:100vh; gap:1px; background:var(--border); }
+
+/* HEADER */
+#header { grid-column:1/-1; background:var(--surface); padding:12px 20px; display:flex; align-items:center; gap:16px; border-bottom:1px solid var(--border); }
+#header h1 { font-size:18px; font-weight:700; background:linear-gradient(135deg,var(--accent),var(--purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+#header .dot { width:8px; height:8px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+#header .status { font-size:12px; color:var(--muted); }
+
+/* SIDEBAR */
+#sidebar { background:var(--surface); padding:16px; overflow-y:auto; }
+#sidebar h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:12px; }
+.skill-card { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; display:flex; align-items:center; gap:10px; transition:all .2s; cursor:default; }
+.skill-card.active { border-color:var(--accent); box-shadow:0 0 12px rgba(59,130,246,.15); }
+.skill-card.done { border-color:var(--green); opacity:.7; }
+.skill-card .icon { width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+.skill-card .icon.star { background:rgba(168,85,247,.15); color:var(--purple); }
+.skill-card .icon.fire { background:rgba(249,115,22,.15); color:var(--orange); }
+.skill-card .icon.bolt { background:rgba(34,197,94,.15); color:var(--green); }
+.skill-card .icon.wave { background:rgba(6,182,212,.15); color:var(--cyan); }
+.skill-card .info { flex:1; }
+.skill-card .name { font-size:13px; font-weight:600; }
+.skill-card .state { font-size:11px; color:var(--muted); }
+.skill-card .badge { font-size:10px; padding:2px 6px; border-radius:4px; }
+.badge.active { background:rgba(59,130,246,.15); color:var(--accent); }
+.badge.done { background:rgba(34,197,94,.15); color:var(--green); }
+.badge.idle { background:rgba(100,116,139,.1); color:var(--muted); }
+
+/* MAIN */
+#main { background:var(--surface); padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:16px; }
+#task-input { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px 16px; color:var(--text); font-size:14px; outline:none; }
+#task-input:focus { border-color:var(--accent); }
+#task-input::placeholder { color:var(--muted); }
+#task-bar { display:flex; gap:8px; }
+#task-bar button { padding:8px 16px; border-radius:6px; border:none; cursor:pointer; font-size:13px; font-weight:600; transition:all .2s; }
+.btn-plan { background:rgba(59,130,246,.15); color:var(--accent); }
+.btn-plan:hover { background:rgba(59,130,246,.25); }
+.btn-build { background:linear-gradient(135deg,var(--accent),var(--purple)); color:#fff; }
+.btn-build:hover { opacity:.9; }
+
+/* FLOW */
+#flow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.flow-step { padding:6px 12px; border-radius:20px; font-size:12px; font-weight:500; border:1px solid var(--border); }
+.flow-step.active { background:rgba(59,130,246,.1); border-color:var(--accent); }
+.flow-step.done { background:rgba(34,197,94,.1); border-color:var(--green); color:var(--green); }
+.flow-arrow { color:var(--muted); }
+
+/* OUTPUT */
+#output { flex:1; background:var(--bg); border-radius:8px; padding:16px; font-family:'JetBrains Mono',monospace; font-size:12px; overflow-y:auto; white-space:pre-wrap; color:var(--muted); min-height:200px; }
+#output .timestamp { color:var(--muted); }
+#output .skill-name { color:var(--accent); font-weight:600; }
+#output .done-msg { color:var(--green); }
+
+/* RIGHT PANEL */
+#right { background:var(--surface); padding:16px; overflow-y:auto; }
+#right h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:12px; }
+.stat { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.stat .val { font-weight:600; }
+#history { margin-top:16px; }
+.history-item { padding:8px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.history-item .date { color:var(--muted); font-size:10px; }
+.confidence-bar { height:4px; border-radius:2px; background:var(--border); margin:4px 0; overflow:hidden; }
+.confidence-bar .fill { height:100%; border-radius:2px; transition:width .5s; }
+
+/* RESPONSIVE */
+@media (max-width:900px) { #app { grid-template-columns:1fr; grid-template-rows:auto auto 1fr; } #sidebar,#right { display:none; } }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <div id="header">
+    <h1>🔮 Palskills Engine</h1>
+    <div class="dot" id="status-dot"></div>
+    <span class="status" id="status-text">connected</span>
+    <span style="flex:1"></span>
+    <span style="font-size:12px;color:var(--muted)" id="project-name">.palbox/</span>
+  </div>
+
+  <!-- SIDEBAR: Skills -->
+  <div id="sidebar">
+    <h2>🔧 Skills</h2>
+    <div id="skills-list"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <input id="task-input" placeholder="Describe your task... (e.g. build login with JWT refresh token)">
+    <div id="task-bar">
+      <button class="btn-plan" onclick="submitTask('plan')">📋 Plan</button>
+      <button class="btn-build" onclick="submitTask('build')">🚀 Build</button>
+      <span id="confidence-display" style="font-size:12px;color:var(--muted);align-self:center;margin-left:auto;"></span>
+    </div>
+    <div id="flow"></div>
+    <div id="output">[palskills] Ready. Type a task and press Build to start the pipeline.</div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right">
+    <h2>📊 Stats</h2>
+    <div class="stat"><span>Skills loaded</span><span class="val">11</span></div>
+    <div class="stat"><span>Palbox nodes</span><span class="val" id="stat-nodes">—</span></div>
+    <div class="stat"><span>CBM symbols</span><span class="val" id="stat-symbols">—</span></div>
+    <div class="stat"><span>Tokens saved</span><span class="val" id="stat-tokens">—</span></div>
+    <div class="stat"><span>Confidence</span><span class="val" id="stat-confidence">—</span></div>
+    <div id="history"><h2>📜 History</h2><div id="history-list"></div></div>
+  </div>
+
+</div>
+
+<script>
+const skills = [
+  { name:'orchestrate', label:'Astralym', icon:'⭐', color:'star', desc:'Flow detection' },
+  { name:'scan_context', label:'Lyleen', icon:'🔍', color:'wave', desc:'Context scanner' },
+  { name:'generate_plan', label:'Jetdragon', icon:'📋', color:'bolt', desc:'Planning' },
+  { name:'generate_prd', label:'Quivern', icon:'📄', color:'wave', desc:'PRD generator' },
+  { name:'design_system', label:'Elphidran', icon:'🎨', color:'star', desc:'Design system' },
+  { name:'architect_backend', label:'Blazamut', icon:'🏗️', color:'fire', desc:'Backend arch' },
+  { name:'design_schema', label:'Grizzbolt', icon:'🗄️', color:'fire', desc:'DB schema' },
+  { name:'componentize_ui', label:'Astegon', icon:'🧩', color:'star', desc:'Frontend tree' },
+  { name:'dispatch_build', label:'Anubis', icon:'⚡', color:'bolt', desc:'Code execution' },
+  { name:'run_tests', label:'Verdash', icon:'🧪', color:'bolt', desc:'Test runner' },
+  { name:'record_session', label:'Panthalus', icon:'📝', color:'wave', desc:'Session logger' }
+];
+
+let ws;
+let taskQueue = [];
+
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage = e => {
+    const data = JSON.parse(e.data);
+    handleEvent(data);
+  };
+  ws.onclose = () => { document.getElementById('status-dot').style.background='var(--red)'; document.getElementById('status-text').textContent='disconnected'; setTimeout(connect,2000); };
+}
+
+function handleEvent(e) {
+  const out = document.getElementById('output');
+  const ts = new Date().toLocaleTimeString();
+
+  if (e.event === 'connected') {
+    document.getElementById('status-text').textContent = 'connected';
+  }
+
+  if (e.skill) {
+    updateSkill(e.skill, e.status || 'active', e.duration_ms);
+  }
+
+  if (e.flow) {
+    renderFlow(e.flow);
+  }
+
+  if (e.confidence) {
+    document.getElementById('stat-confidence').textContent = e.confidence + '%';
+    document.getElementById('confidence-display').innerHTML = `Confidence: <span style="color:${e.confidence>80?'var(--green)':'var(--yellow)'}">${e.confidence}%</span>`;
+  }
+
+  if (e.message) {
+    const skillTag = e.skill ? `<span class="skill-name">[${e.skill}]</span> ` : '';
+    const statusTag = e.status === 'done' ? '✅ ' : e.status === 'active' ? '🔄 ' : '';
+    out.innerHTML += `\n<span class="timestamp">${ts}</span> ${statusTag}${skillTag}${e.message}`;
+    out.scrollTop = out.scrollHeight;
+  }
+}
+
+function updateSkill(name, status, duration) {
+  const card = document.getElementById(`skill-${name}`);
+  if (!card) return;
+  const badge = card.querySelector('.badge');
+  card.className = `skill-card ${status}`;
+  badge.className = `badge ${status}`;
+  badge.textContent = status === 'active' ? 'ACTIVE' : status === 'done' ? `✓ ${duration||0}ms` : 'IDLE';
+  card.querySelector('.state').textContent = status === 'active' ? 'Running...' : status === 'done' ? 'Done' : 'Waiting';
+}
+
+function renderFlow(flow) {
+  const el = document.getElementById('flow');
+  el.innerHTML = flow.map((s,i) => `<span class="flow-step">${s.replace(/_/g,' ')}</span>${i<flow.length-1?'<span class="flow-arrow">→</span>':''}`).join('');
+}
+
+function submitTask(mode) {
+  const task = document.getElementById('task-input').value.trim();
+  if (!task) return;
+  document.getElementById('output').innerHTML += `\n<span class="timestamp">→</span> <b>${mode.toUpperCase()}:</b> ${task}`;
+  document.getElementById('task-input').value = '';
+  // Highlight first skill
+  resetSkills();
+  updateSkill('orchestrate', 'active', null);
+  updateSkill('scan_context', 'active', null);
+  // Simulate pipeline (in real build, WebSocket broadcasts these)
+  ws.send(JSON.stringify({mode, task}));
+}
+
+function resetSkills() {
+  skills.forEach(s => updateSkill(s.name, 'idle', null));
+}
+
+// Init skills sidebar
+function initSkills() {
+  const list = document.getElementById('skills-list');
+  skills.forEach(s => {
+    list.innerHTML += `
+      <div class="skill-card" id="skill-${s.name}">
+        <div class="icon ${s.color}">${s.icon}</div>
+        <div class="info">
+          <div class="name">${s.label}</div>
+          <div class="state">Waiting</div>
+        </div>
+        <span class="badge idle">IDLE</span>
+      </div>`;
+  });
+}
+
+initSkills();
+connect();
+</script>
+</body>
+</html>

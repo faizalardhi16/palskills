@@ -22,6 +22,10 @@ schemars = "1"
 walkdir = "2"
 regex = "1"
 chrono = { version = "0.4", features = ["serde"] }
+axum = { version = "0.7", features = ["ws"] }
+axum-extra = { version = "0.9", features = ["cookie"] }
+futures = "0.3"
+uuid = { version = "1", features = ["v4"] }
 
 [profile.release]
 opt-level = 3

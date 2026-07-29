@@ -1,12 +1,13 @@
 //! Palskills Engine — AI development pipeline orchestration.
 //!
-//! Two modes:
-//!   palskills init                      → bootstrap .palbox/ from project
-//!   palskills serve                     → start MCP server (11 tools)
-//!   palskills plan "build login"        → Jetdragon mode (interactive)
+//!   palskills init                      → bootstrap .palbox/
+//!   palskills serve                     → MCP server (11 tools)
+//!   palskills serve --ui                → MCP + dashboard on http://localhost:3030
+//!   palskills plan "build login"        → Jetdragon mode
 //!   palskills build "build login"       → full pipeline
 
 mod server;
+mod dashboard;
 mod palbox_graph;
 mod cbm_bridge;
 mod orchestrator;
@@ -40,6 +41,9 @@ enum Command {
         /// Path to CBM index.db (optional)
         #[arg(long, default_value = "index.db")]
         cbm: PathBuf,
+        /// Enable web dashboard on http://localhost:3030
+        #[arg(long)]
+        ui: bool,
     },
     /// Jetdragon mode: brainstorm → clarify → generate plan
     Plan {
@@ -73,9 +77,19 @@ fn main() -> anyhow::Result<()> {
             }
             log::info!("✅ .palbox/ ready. Run 'palskills serve' to start MCP server.");
         }
-        Command::Serve { palbox, cbm } => {
+        Command::Serve { palbox, cbm, ui } => {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
+                // Spawn dashboard if --ui
+                if ui {
+                    let dash_palbox = palbox.clone();
+                    tokio::spawn(async {
+                        if let Err(e) = dashboard::serve(dash_palbox).await {
+                            eprintln!("Dashboard error: {}", e);
+                        }
+                    });
+                    log::info!("🌐 Dashboard: http://localhost:3030");
+                }
                 if let Err(e) = server::run_server(palbox, cbm).await {
                     eprintln!("Server error: {}", e);
                 }
