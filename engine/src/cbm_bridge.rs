@@ -23,7 +23,7 @@ pub struct FileMatch {
     pub matches: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CbmContext {
     pub available: bool,
     pub symbols: Vec<SymbolInfo>,

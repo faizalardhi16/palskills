@@ -1,11 +1,11 @@
 [package]
-name = "palskills"
+name = "palskills-engine"
 version = "0.1.0"
 edition = "2021"
-description = "Palskills Engine — MCP orchestration engine for AI development pipeline. Astralym, Jetdragon, Anubis, and all 11 skills as MCP tools."
+description = "Palskills Engine — CBM-aware MCP orchestration with 5 tools (orchestrate, scan_context, dispatch, run_tests, record_session). Knowledge lives in .md files."
 
 [[bin]]
-name = "palskills"
+name = "palskills-engine"
 path = "src/main.rs"
 
 [dependencies]
