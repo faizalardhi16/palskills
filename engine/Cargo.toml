@@ -2,7 +2,7 @@
 name = "palskills-engine"
 version = "0.1.0"
 edition = "2021"
-description = "Palskills Engine — CBM-aware MCP orchestration with 5 tools (orchestrate, scan_context, dispatch, run_tests, record_session). Knowledge lives in .md files."
+description = "Palskills Engine — CBM-aware MCP orchestration with 6 tools (orchestrate, write_docs, scan_context, dispatch, run_tests, record_session). Knowledge lives in .md files."
 
 [[bin]]
 name = "palskills-engine"

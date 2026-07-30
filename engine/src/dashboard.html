@@ -40,6 +40,7 @@ body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sa
 .skill-card .icon.fire { background:rgba(249,115,22,.15); color:var(--orange); }
 .skill-card .icon.bolt { background:rgba(34,197,94,.15); color:var(--green); }
 .skill-card .icon.wave { background:rgba(6,182,212,.15); color:var(--cyan); }
+.skill-card .icon.quill { background:rgba(245,158,11,.15); color:var(--yellow); }
 .skill-card .info { flex:1; }
 .skill-card .name { font-size:13px; font-weight:600; }
 .skill-card .state { font-size:11px; color:var(--muted); }
@@ -90,7 +91,7 @@ body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sa
 
   <div id="right">
     <h2>📊 Stats</h2>
-    <div class="stat"><span>Tools loaded</span><span class="val">5</span></div>
+    <div class="stat"><span>Tools loaded</span><span class="val">6</span></div>
     <div class="stat"><span>Palbox nodes</span><span class="val" id="stat-nodes">—</span></div>
     <div class="stat"><span>CBM symbols</span><span class="val" id="stat-symbols">—</span></div>
     <div class="stat"><span>CBM files</span><span class="val" id="stat-files">—</span></div>
@@ -102,6 +103,7 @@ body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sa
 <script>
 const skills = [
   { name:'orchestrate', label:'Astralym', icon:'⭐', color:'star', desc:'CBM-aware flow detection' },
+  { name:'write_docs', label:'Katress', icon:'🖋️', color:'quill', desc:'Documentation-first gate' },
   { name:'scan_context', label:'Lyleen', icon:'🔍', color:'wave', desc:'CBM code search' },
   { name:'dispatch', label:'Anubis', icon:'⚡', color:'bolt', desc:'Agent execution (SOLID)' },
   { name:'run_tests', label:'Verdash', icon:'🧪', color:'bolt', desc:'Test runner' },

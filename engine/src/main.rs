@@ -1,7 +1,7 @@
-//! Palskills Engine — CBM-aware MCP orchestration (5 tools).
+//! Palskills Engine — CBM-aware MCP orchestration (6 tools).
 //!
 //!   palskills-engine init   → bootstrap .palbox/
-//!   palskills-engine serve  → MCP server (5 tools) + dashboard on http://localhost:3030
+//!   palskills-engine serve  → MCP server (6 tools) + dashboard on http://localhost:3030
 
 mod server;
 mod dashboard;
@@ -27,7 +27,7 @@ enum Command {
         #[arg(short, long, default_value = ".")]
         project: PathBuf,
     },
-    /// Start 5-tool MCP server + dashboard on :3030
+    /// Start 6-tool MCP server + dashboard on :3030
     Serve {
         #[arg(short, long)]
         project: Option<PathBuf>,

@@ -44,6 +44,7 @@ pub fn analyze(project_root: &Path, task: &str) -> anyhow::Result<OrchestrationP
     let is_review = task_lower.contains("review") || task_lower.contains("audit");
     let is_plan = task_lower.contains("plan") || task_lower.contains("design") || task_lower.contains("brainstorm");
     let is_test = task_lower.contains("test") || task_lower.contains("tdd");
+    let is_docs = task_lower.contains("doc") || task_lower.contains("readme") || task_lower.contains("spec");
 
     let needs_db = task_lower.contains("database") || task_lower.contains("table") || task_lower.contains("schema")
         || task_lower.contains("migration") || task_lower.contains("model");
@@ -90,12 +91,17 @@ pub fn analyze(project_root: &Path, task: &str) -> anyhow::Result<OrchestrationP
     }
 
     // Build flow
-    if is_plan {
+    if is_docs {
+        flow.push("write_docs".to_string());
+        flow.push("record_session".to_string());
+    } else if is_plan {
+        flow.push("write_docs".to_string());
         flow.push("generate_plan".to_string());
         if needs_db { flow.push("design_schema".to_string()); }
         if needs_api { flow.push("architect_backend".to_string()); }
         if needs_ui { flow.push("componentize_ui".to_string()); }
     } else if is_build {
+        flow.push("write_docs".to_string());
         if needs_db { flow.push("design_schema".to_string()); }
         if needs_api { flow.push("architect_backend".to_string()); }
         if needs_ui { flow.push("componentize_ui".to_string()); }
@@ -103,7 +109,7 @@ pub fn analyze(project_root: &Path, task: &str) -> anyhow::Result<OrchestrationP
         flow.push("dispatch_build".to_string());
         flow.push("record_session".to_string());
     } else if is_fix {
-        flow.push("generate_plan".to_string());
+        flow.push("scan_context".to_string());
         flow.push("dispatch_build".to_string());
         flow.push("run_tests".to_string());
         flow.push("record_session".to_string());
