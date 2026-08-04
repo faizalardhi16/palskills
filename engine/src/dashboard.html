@@ -91,7 +91,7 @@ body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sa
 
   <div id="right">
     <h2>📊 Stats</h2>
-    <div class="stat"><span>Tools loaded</span><span class="val">6</span></div>
+    <div class="stat"><span>Tools loaded</span><span class="val">5</span></div>
     <div class="stat"><span>Palbox nodes</span><span class="val" id="stat-nodes">—</span></div>
     <div class="stat"><span>CBM symbols</span><span class="val" id="stat-symbols">—</span></div>
     <div class="stat"><span>CBM files</span><span class="val" id="stat-files">—</span></div>
@@ -103,11 +103,10 @@ body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sa
 <script>
 const skills = [
   { name:'orchestrate', label:'Astralym', icon:'⭐', color:'star', desc:'CBM-aware flow detection' },
-  { name:'write_docs', label:'Katress', icon:'🖋️', color:'quill', desc:'Documentation-first gate' },
   { name:'scan_context', label:'Lyleen', icon:'🔍', color:'wave', desc:'CBM code search' },
   { name:'dispatch', label:'Anubis', icon:'⚡', color:'bolt', desc:'Agent execution (SOLID)' },
   { name:'run_tests', label:'Verdash', icon:'🧪', color:'bolt', desc:'Test runner' },
-  { name:'record_session', label:'Panthalus', icon:'📝', color:'wave', desc:'Session persistence' }
+  { name:'record_session', label:'Panthalus', icon:'📝', color:'wave', desc:'Session + docs sync' }
 ];
 
 let ws;
