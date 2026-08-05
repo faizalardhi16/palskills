@@ -1,0 +1,78 @@
+# Palskills Engine — AI Agent Rules
+# v3.4.1 — 5-tool pipeline, zero blocking gates
+
+## Pipeline (MANDATORY — follow this order)
+
+```
+orchestrate → scan_context → dispatch → run_tests → record_session
+```
+
+### 1. orchestrate
+Analyze task intent + generate advisory plan.
+- Returns: flow, confidence %, CBM symbols/files, advisory plan (auto-saved to .palbox/plans/)
+- **NO blocking** — if plan is generated, read it inline and proceed immediately
+- User CAN review .palbox/plans/ anytime, but agent is NOT blocked
+
+### 2. scan_context
+Search codebase for relevant code + read .palbox/ docs.
+- CBM indexed? Returns symbols + files instantly
+- No CBM? Fast-path: light file listing (<1 sec, no deep grep)
+- Also returns architecture.md, database.md, recent flows, session history
+- **Do NOT skip this** — context from past sessions is here
+
+### 3. dispatch
+SOLID discipline gate. Returns a structured contract:
+```json
+{
+  "task": "...",
+  "context": { "symbols": [...], "files": [...], "architecture": "..." },
+  "constraints": "SOLID principles (mandatory)...",
+  "gate": "Execute with SOLID. No god classes. No duplication. No magic numbers."
+}
+```
+- **NO subprocess** — you (the agent) read the contract and execute inline
+- SOLID compliance checklist is in the contract — follow ALL points
+- DO NOT write code before reading dispatch output
+
+### 4. run_tests
+Auto-detect test runner (pytest, cargo test, npm test).
+- Run after every code change
+- Fail = fix and re-run
+- Pass = proceed to record_session
+
+### 5. record_session
+Save session history + sync .palbox/ docs.
+- Writes .palbox/history/<date-task>.md
+- Auto-updates architecture.md, database.md, flows/
+- Scans project files (capped at 300, <2 sec)
+- **Always call this after completing a task**
+
+## Code quality (enforced by dispatch)
+
+- Single Responsibility: one module/class = one reason to change
+- Open-Closed: extend via composition, never modify existing
+- Liskov: subtypes honor full contract
+- Interface Segregation: small focused interfaces
+- Dependency Inversion: depend on abstractions
+- Zero duplication: extract shared logic
+- No magic numbers: constants named + documented
+- YAGNI: only build what's needed now
+- Tests alongside (TDD: RED → GREEN → REFACTOR)
+
+## Before coding
+
+1. Call `orchestrate` — read the advisory plan if generated
+2. Call `scan_context` — understand existing code + past decisions
+3. Call `dispatch` — get SOLID contract
+4. NOW start coding with the contract as your guide
+
+## After coding
+
+1. Call `run_tests` — verify nothing broke
+2. Call `record_session` — save everything to .palbox/
+
+## No blocking gates
+
+- No "wait for Gas" — proceed after reading advisory plan
+- No subprocess spawns — dispatch returns contract, agent executes
+- No 15-minute scans — scan_context and record_session are capped

@@ -56,10 +56,26 @@ pub struct DispatchContext {
 }
 
 /// Generate SOLID contract for the main AI agent.
-/// Reads CBM + .palbox/ context, wraps in SOLID constraints,
-/// returns the contract — NO subprocess spawned.
+/// Reads CBM + .palbox/ context, wraps in SOLID constraints.
+/// Fast-path when no CBM: skips per-keyword grep, uses light file listing.
 pub fn generate_contract(project_root: &Path, task: &str) -> anyhow::Result<SolidityContract> {
-    let cbm = cbm_bridge::get_context(project_root, task).unwrap_or_default();
+    // Fast-path: check CBM availability
+    let cbm_available = cbm_bridge::check_available(project_root).unwrap_or(false);
+
+    let cbm = if cbm_available {
+        cbm_bridge::get_context(project_root, task).unwrap_or_default()
+    } else {
+        // No CBM — light file listing (same fast-path as scan_context)
+        log::info!("⚡ No CBM — dispatch fast-path: listing files only");
+        cbm_bridge::CbmContext {
+            available: false,
+            symbols: vec![],
+            callers: vec![],
+            architecture: None,
+            files: cbm_bridge::quick_file_listing(project_root, task),
+            source: "fast-scan".to_string(),
+        }
+    };
     let docs = palbox_context::read_docs(project_root, task);
 
     let symbols: Vec<String> = cbm.symbols.iter().map(|s| s.name.clone()).collect();

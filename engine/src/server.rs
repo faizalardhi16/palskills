@@ -173,7 +173,7 @@ impl AppState {
                 symbols: vec![],
                 callers: vec![],
                 architecture: None,
-                files: quick_file_listing(root, &p.task),
+                files: cbm_bridge::quick_file_listing(root, &p.task),
                 source: "fast-scan".to_string(),
             })
         };
@@ -300,44 +300,6 @@ impl AppState {
         tool_done(&self.palbox, "record_session", &msg, timer, &p.task, None, None);
         out(report)
     }
-}
-
-// ── Fast file listing (no CBM, no deep grep) ────────────────────
-
-/// Quick shallow file listing — skip node_modules/target/.git.
-/// Used when CBM index is unavailable to avoid 15+ minute grep scans.
-/// Returns up to 30 source files matching the task keywords.
-fn quick_file_listing(root: &std::path::Path, task: &str) -> Vec<String> {
-    let keywords: Vec<&str> = task
-        .split(|c: char| c.is_whitespace() || c == '-' || c == '_' || c == '/' || c == '.')
-        .filter(|w| w.len() > 2)
-        .collect();
-
-    if keywords.is_empty() {
-        return vec![];
-    }
-
-    // Use rg -l with excludes — fast, no deep grep, just file listing
-    let kw_pattern = keywords.join("|");
-    let cmd = format!(
-        "rg -l --max-count 1 --max-depth 3 --glob '!node_modules/**' --glob '!target/**' --glob '!.git/**' --glob '!**/node_modules/**' '{}' 2>/dev/null | head -30",
-        kw_pattern
-    );
-
-    if let Ok(out) = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(&cmd)
-        .current_dir(root)
-        .output()
-    {
-        return String::from_utf8_lossy(&out.stdout)
-            .lines()
-            .map(|l| l.trim().to_string())
-            .filter(|l| !l.is_empty())
-            .collect();
-    }
-
-    vec![]
 }
 
 // ── Entry point ──────────────────────────────────────────────────

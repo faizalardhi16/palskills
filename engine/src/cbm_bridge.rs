@@ -303,3 +303,41 @@ pub fn get_context(project_root: &Path, prompt: &str) -> anyhow::Result<CbmConte
         source,
     })
 }
+
+// ── Fast file listing (no CBM, no deep grep) ────────────────────
+
+/// Quick shallow file listing — skip node_modules/target/.git.
+/// Used when CBM index is unavailable to avoid 15+ minute grep scans.
+/// Returns up to 30 source files matching the task keywords.
+pub fn quick_file_listing(root: &Path, task: &str) -> Vec<String> {
+    let keywords: Vec<&str> = task
+        .split(|c: char| c.is_whitespace() || c == '-' || c == '_' || c == '/' || c == '.')
+        .filter(|w| w.len() > 2)
+        .take(5) // cap keywords to avoid excessive OR pattern
+        .collect();
+
+    if keywords.is_empty() {
+        return vec![];
+    }
+
+    let kw_pattern = keywords.join("|");
+    let cmd = format!(
+        "rg -l --max-count 1 --max-depth 3 --glob '!node_modules/**' --glob '!target/**' --glob '!.git/**' --glob '!**/node_modules/**' '{}' 2>/dev/null | head -30",
+        kw_pattern
+    );
+
+    if let Ok(out) = Command::new("sh")
+        .arg("-c")
+        .arg(&cmd)
+        .current_dir(root)
+        .output()
+    {
+        return String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+    }
+
+    vec![]
+}
