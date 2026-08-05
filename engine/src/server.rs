@@ -208,31 +208,18 @@ impl AppState {
         out(serde_json::to_string_pretty(&output).unwrap_or_default())
     }
 
-    /// Anubis: SOLID discipline gate.
-    /// Returns a SOLID-wrapped contract with codebase context — NO subprocess.
-    /// The main AI agent reads the contract and executes with SOLID enforced.
-    /// This prevents god classes, magic numbers, and code duplication.
+    /// Anubis: SOLID discipline gate. ZERO I/O — pure contract.
     #[tool(
         name = "dispatch",
-        description = "SOLID discipline gate. Returns a contract with SOLID principles + codebase context that the agent MUST follow. No subprocess — the calling agent reads the contract and executes. This prevents god classes, magic numbers, and code duplication."
+        description = "SOLID discipline gate. Returns SOLID principles contract. ZERO I/O — pure constraints. Context was already gathered by scan_context. Read this contract BEFORE writing any code."
     )]
     fn dispatch(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
-        let timer = tool_start(&self.palbox, "dispatch", &format!("Contract: {}", p.task), &p.task);
-        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
+        let timer = tool_start(&self.palbox, "dispatch", "Generating SOLID contract", &p.task);
 
-        match dispatch::generate_contract(root, &p.task) {
-            Ok(contract) => {
-                let sym_count = contract.context.symbols.len();
-                let file_count = contract.context.files.len();
-                let msg = format!("SOLID contract generated: {} symbols, {} files", sym_count, file_count);
-                tool_done(&self.palbox, "dispatch", &msg, timer, &p.task, None, None);
-                out(serde_json::to_string_pretty(&contract).unwrap_or_default())
-            }
-            Err(e) => {
-                tool_error(&self.palbox, "dispatch", &format!("Failed: {e}"), timer);
-                out(format!("❌ Dispatch failed: {e}"))
-            }
-        }
+        let contract = dispatch::generate_contract(&p.task);
+        let msg = "SOLID contract ready";
+        tool_done(&self.palbox, "dispatch", msg, timer, &p.task, None, None);
+        out(serde_json::to_string_pretty(&contract).unwrap_or_default())
     }
 
     /// Verdash: Run actual test suite.
