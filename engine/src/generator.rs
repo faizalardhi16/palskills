@@ -312,28 +312,33 @@ struct ProjectScan {
 
 /// Lightweight project scanner — walks the tree (excluding node_modules,
 /// target, .git, .palbox) and classifies files by type.
+/// Hard cap at MAX_FILES to prevent timeout on large projects.
+const MAX_SCAN_FILES: usize = 300;
+
 fn scan_project_files(root: &Path) -> ProjectScan {
     let mut scan = ProjectScan::default();
-    let skip_dirs = ["node_modules", "target", ".git", ".palbox", "__pycache__", ".venv", "dist", "build", ".next"];
+    let skip_dirs = ["node_modules", "target", ".git", ".palbox", "__pycache__", ".venv", "dist", "build", ".next", ".turbo", "coverage", "uploads", "public/assets"];
 
-    // Walk dirs (only 2 levels for performance)
+    // Walk dirs (only 2 levels for performance) — bail at MAX_SCAN_FILES
     if let Ok(entries) = std::fs::read_dir(root) {
         for entry in entries.flatten() {
+            if scan.new_files.len() >= MAX_SCAN_FILES { break; }
             let path = entry.path();
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if skip_dirs.contains(&name) { continue; }
+            if skip_dirs.contains(&name) || name.starts_with('.') { continue; }
 
             if path.is_dir() {
                 scan.dir_count += 1;
-                // Shallow scan inside dir
                 if let Ok(sub) = std::fs::read_dir(&path) {
                     for e in sub.flatten() {
+                        if scan.new_files.len() >= MAX_SCAN_FILES { break; }
                         let fname = e.file_name().to_string_lossy().to_string();
-                        if e.path().is_dir() && !skip_dirs.contains(&fname.as_str()) {
+                        if e.path().is_dir() && !skip_dirs.contains(&fname.as_str()) && !fname.starts_with('.') {
                             scan.dir_count += 1;
-                            // Second level
+                            // Second level — only classify, don't recurse further
                             if let Ok(sub2) = std::fs::read_dir(e.path()) {
                                 for e2 in sub2.flatten() {
+                                    if scan.new_files.len() >= MAX_SCAN_FILES { break; }
                                     classify_file(e2.path(), &mut scan);
                                 }
                             }
@@ -348,12 +353,25 @@ fn scan_project_files(root: &Path) -> ProjectScan {
         }
     }
 
+    if scan.new_files.len() >= MAX_SCAN_FILES {
+        log::info!("⚡ Scan capped at {} files (MAX_SCAN_FILES)", MAX_SCAN_FILES);
+    }
+
     scan
 }
 
 fn classify_file(path: PathBuf, scan: &mut ProjectScan) {
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+
+    // Fast skip: only track source/config files
+    if !matches!(
+        ext,
+        "rs" | "py" | "ts" | "tsx" | "js" | "jsx" | "go" | "sql" | "toml" | "yaml" | "yml" | "json"
+    ) {
+        return;
+    }
+
     let display = path.strip_prefix(std::env::current_dir().unwrap_or_default())
         .unwrap_or(&path)
         .display()
