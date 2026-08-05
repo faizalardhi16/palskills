@@ -150,23 +150,40 @@ pub fn trace_callers(project_root: &Path, symbol_id: &str) -> anyhow::Result<Vec
 // ── GREP FALLBACK ────────────────────────────────────────────────
 
 /// Grep for files containing a pattern. Used ONLY when CBM is unavailable or returns 0 results.
+/// Excludes large directories (node_modules, target, .git, etc.) to prevent 15+ minute scans.
 pub fn grep_files(project_root: &Path, pattern: &str, file_ext: Option<&str>) -> Vec<String> {
     let ext_filter = file_ext.unwrap_or("*");
-    let cmd = if cfg!(windows) {
-        format!("rg -l --max-count 1 \"{}\" --glob \"*.{}\" src 2>nul", pattern, ext_filter)
-    } else {
-        format!("rg -l --max-count 1 \"{}\" --glob \"*.{}\" 2>/dev/null || grep -rl \"{}\" --include=\"*.{}\" 2>/dev/null", pattern, ext_filter, pattern, ext_filter)
-    };
+    let exclude = "--glob '!node_modules/**' --glob '!target/**' --glob '!.git/**' --glob '!**/node_modules/**' --glob '!**/target/**'";
+    let cmd = format!(
+        "rg -l --max-count 1 --max-depth 4 {} \"{}\" --glob \"*.{}\" 2>/dev/null | head -30",
+        exclude, pattern, ext_filter
+    );
 
     if let Ok(out) = Command::new("sh").arg("-c").arg(&cmd).current_dir(project_root).output() {
-        String::from_utf8_lossy(&out.stdout)
+        let lines: Vec<String> = String::from_utf8_lossy(&out.stdout)
             .lines()
             .map(|l| l.trim().to_string())
             .filter(|l| !l.is_empty())
-            .collect()
-    } else {
-        vec![]
+            .collect();
+        if !lines.is_empty() {
+            return lines;
+        }
     }
+
+    // Fallback: grep with excludes (slower but works without rg)
+    let grep_cmd = format!(
+        "grep -rl --exclude-dir=node_modules --exclude-dir=target --exclude-dir=.git --exclude-dir=__pycache__ --include=\"*.{}\" --max-count=1 \"{}\" . 2>/dev/null | head -30",
+        ext_filter, pattern
+    );
+    if let Ok(out) = Command::new("sh").arg("-c").arg(&grep_cmd).current_dir(project_root).output() {
+        return String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+    }
+
+    vec![]
 }
 
 /// Find files by name pattern. CBM first, then find/walkdir fallback.

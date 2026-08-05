@@ -1,9 +1,9 @@
 //! MCP Server — 5 orchestration tools for AI agents.
 //!
 //! Pipeline: orchestrate → scan_context → dispatch → run_tests → record_session
+//! orchestrate auto-generates advisory plans for complex tasks (no blocking gate).
+//! dispatch returns SOLID contract (no subprocess — agent main yg eksekusi).
 //! record_session syncs docs back to .palbox/ after task completion.
-//! Tools: orchestrate (CBM-aware flow detection), scan_context (CBM code search),
-//! dispatch (spawn agent with SOLID), run_tests (verify), record_session (persist + sync docs).
 
 use std::path::PathBuf;
 
@@ -118,8 +118,14 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for FlushingWriter<W> {
 
 #[tool_router(server_handler)]
 impl AppState {
-    /// Astralym: CBM-aware flow detection.
-    #[tool(name = "orchestrate", description = "Analyze task via CBM code search. Returns recommended flow, confidence %, docs-first pipeline, and relevant symbols/files. Use this FIRST before any code generation.")]
+    /// Astralym: CBM-aware flow detection + advisory planning.
+    /// Returns flow, confidence, and for complex tasks an auto-generated
+    /// advisory plan (written to .palbox/plans/). No blocking "Gas" gate —
+    /// agent reads plan and proceeds immediately.
+    #[tool(
+        name = "orchestrate",
+        description = "Analyze task via CBM code search. Returns recommended flow, confidence %, and for complex tasks an advisory plan saved to .palbox/plans/ (no blocking gate). Use this FIRST before any code generation."
+    )]
     fn orchestrate(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "orchestrate", &format!("Analyzing: {}", p.task), &p.task);
         let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
@@ -129,8 +135,14 @@ impl AppState {
                 let flow = ctx.flow.clone();
                 let conf = ctx.confidence;
                 let summary = ctx.summary.clone();
+                let has_plan = ctx.plan_content.is_some();
                 tool_done(&self.palbox, "orchestrate", &summary, timer, &p.task, Some(flow), Some(conf));
-                out(serde_json::to_string_pretty(&ctx).unwrap_or_default())
+
+                let mut output = serde_json::to_string_pretty(&ctx).unwrap_or_default();
+                if has_plan {
+                    output.push_str("\n\n📋 Advisory plan auto-generated — review .palbox/plans/ if needed.");
+                }
+                out(output)
             }
             Err(e) => {
                 tool_error(&self.palbox, "orchestrate", &format!("Error: {e}"), timer);
@@ -139,75 +151,32 @@ impl AppState {
         }
     }
 
-    /// Jetragon: Structured execution planner.
-    /// Writes .palbox/plans/<task>.md with files to touch, approach, risks, and
-    /// dependencies. Agent MUST present this plan to the user for review before
-    /// proceeding. User says "Gas" → continue to scan_context → dispatch.
-    #[tool(name = "plan", description = "Create structured execution plan. Writes .palbox/plans/<task>.md — files to touch, approach, risk assessment, dependencies, rollback. PRESENT TO USER for review. User says 'Gas' → continue.")]
-    fn plan(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
-        let timer = tool_start(&self.palbox, "plan", &format!("Planning: {}", p.task), &p.task);
-        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
-
-        // Get quick context (symbols only, no full scan)
-        let cbm = cbm_bridge::get_context(root, &p.task).unwrap_or_default();
-        let docs = palbox_context::read_docs(root, &p.task);
-
-        let now = chrono::Local::now().format("%Y-%m-%d %H:%M");
-        let plan_name: String = p.task
-            .chars()
-            .take(50)
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
-            .collect();
-
-        let plan_content = format!(
-            "# Execution Plan: {}\n\n\
-             **Date:** {}\n\
-             **Status:** ⏳ Awaiting review\n\n\
-             ## Context\n\n\
-             - **Symbols found:** {}\n\
-             - **Files:** {}\n\
-             - **Docs in .palbox/:** {}\n\n\
-             ## Files to touch\n\n\
-             [tba — list files that will be created/modified]\n\n\
-             ## Approach\n\n\
-             [tba — step-by-step execution strategy]\n\n\
-             ## Risk assessment\n\n\
-             [tba — what could break, rollback plan]\n\n\
-             ## Dependencies\n\n\
-             [tba — other modules/tasks this depends on]\n\n\
-             ---\n\
-             > 👆 Review this plan. Reply **Gas** to execute, or request changes.\n",
-            p.task,
-            now,
-            cbm.symbols.len(),
-            cbm.files.len(),
-            docs.docs_found,
-        );
-
-        match write_plan(root, &plan_name, &plan_content) {
-            Ok(path) => {
-                let msg = format!("Plan written to {}", path.display());
-                tool_done(&self.palbox, "plan", &msg, timer, &p.task, None, None);
-                let result = format!(
-                    "{}\n\n📋 Plan saved. Review and say **Gas** to execute.\n\n{}",
-                    msg, plan_content
-                );
-                out(result)
-            }
-            Err(e) => {
-                tool_error(&self.palbox, "plan", &format!("Failed: {e}"), timer);
-                out(format!("Error: {e}"))
-            }
-        }
-    }
-
     /// Lyleen: CBM-backed code search + palbox docs context.
-    #[tool(name = "scan_context", description = "Search codebase via CBM + read .palbox/ docs. Returns code symbols/files AND architecture summary, recent flows, and session history. Use this to understand BOTH existing code AND decisions from past sessions.")]
+    /// Fast: skips deep grep when CBM unavailable — returns light listing + docs.
+    #[tool(
+        name = "scan_context",
+        description = "Search codebase via CBM + read .palbox/ docs. Returns code symbols/files AND architecture summary, recent flows, and session history. Fast — skips deep grep when no CBM, returns light file listing instead."
+    )]
     fn scan_context(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "scan_context", &format!("Scanning: {}", p.task), &p.task);
         let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
 
-        let cbm = cbm_bridge::get_context(root, &p.task).ok();
+        // Fast-path: check if CBM index exists
+        let cbm_available = cbm_bridge::check_available(root).unwrap_or(false);
+        let cbm = if cbm_available {
+            cbm_bridge::get_context(root, &p.task).ok()
+        } else {
+            // No CBM: skip deep grep, return light file listing only
+            log::info!("⚡ No CBM index — fast-path: listing relevant files only");
+            Some(cbm_bridge::CbmContext {
+                available: false,
+                symbols: vec![],
+                callers: vec![],
+                architecture: None,
+                files: quick_file_listing(root, &p.task),
+                source: "fast-scan".to_string(),
+            })
+        };
         let docs = palbox_context::read_docs(root, &p.task);
 
         #[derive(Serialize)]
@@ -239,23 +208,25 @@ impl AppState {
         out(serde_json::to_string_pretty(&output).unwrap_or_default())
     }
 
-    /// Anubis: Dispatch to AI agent for execution.
-    #[tool(name = "dispatch", description = "Execute feature via AI coding agent (Codex CLI). Passes enriched context from scan_context. Applies SOLID principles — single responsibility, DRY, no code smells.")]
+    /// Anubis: SOLID discipline gate.
+    /// Returns a SOLID-wrapped contract with codebase context — NO subprocess.
+    /// The main AI agent reads the contract and executes with SOLID enforced.
+    /// This prevents god classes, magic numbers, and code duplication.
+    #[tool(
+        name = "dispatch",
+        description = "SOLID discipline gate. Returns a contract with SOLID principles + codebase context that the agent MUST follow. No subprocess — the calling agent reads the contract and executes. This prevents god classes, magic numbers, and code duplication."
+    )]
     fn dispatch(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
-        let timer = tool_start(&self.palbox, "dispatch", &format!("Dispatching: {}", p.task), &p.task);
+        let timer = tool_start(&self.palbox, "dispatch", &format!("Contract: {}", p.task), &p.task);
         let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
 
-        // Build enriched context: CBM results + SOLID prompt
-        let cbm = cbm_bridge::get_context(root, &p.task).unwrap_or_default();
-        let enriched_task = format!(
-            "{}\n\n## Codebase Context\nSymbols: {:?}\nFiles: {:?}\n\n## Constraints\n- Apply SOLID principles (Single Responsibility, Open-Closed, Liskov, Interface Segregation, Dependency Inversion)\n- Zero code duplication — extract shared logic, never copy-paste\n- No code smells (god classes, long methods, magic numbers)\n- Write clean, self-documenting code with meaningful names\n- YAGNI: only build what's needed now, not what might be needed later",
-            p.task, cbm.symbols, cbm.files
-        );
-
-        match dispatch::execute(root, &enriched_task) {
-            Ok(()) => {
-                tool_done(&self.palbox, "dispatch", "Agent dispatched with SOLID constraints", timer, &p.task, None, None);
-                out("✅ Dispatched. AI agent building with SOLID principles...".into())
+        match dispatch::generate_contract(root, &p.task) {
+            Ok(contract) => {
+                let sym_count = contract.context.symbols.len();
+                let file_count = contract.context.files.len();
+                let msg = format!("SOLID contract generated: {} symbols, {} files", sym_count, file_count);
+                tool_done(&self.palbox, "dispatch", &msg, timer, &p.task, None, None);
+                out(serde_json::to_string_pretty(&contract).unwrap_or_default())
             }
             Err(e) => {
                 tool_error(&self.palbox, "dispatch", &format!("Failed: {e}"), timer);
@@ -265,7 +236,10 @@ impl AppState {
     }
 
     /// Verdash: Run actual test suite.
-    #[tool(name = "run_tests", description = "Run project test suite. Auto-detects runner (pytest, cargo test, npm test). Returns pass/fail results. Fails are SOFT BLOCKERS — fix and re-run.")]
+    #[tool(
+        name = "run_tests",
+        description = "Run project test suite. Auto-detects runner (pytest, cargo test, npm test). Returns pass/fail results. Fails are SOFT BLOCKERS — fix and re-run."
+    )]
     fn run_tests(&self) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "run_tests", "Running tests...", "tests");
         let commands = ["pytest -x --tb=short", "cargo test --quiet", "npm test -- --reporter=min"];
@@ -285,9 +259,10 @@ impl AppState {
     }
 
     /// Panthalus: Persist session + sync docs to .palbox/.
-    /// After recording history, scans project for new/modified files and
-    /// auto-patches architecture.md, database.md, and flow docs.
-    #[tool(name = "record_session", description = "Record session history AND sync project docs. Scans for new files, routes, and schema changes — updates .palbox/architecture.md + database.md + flows/ automatically. Use this after every completed task to keep documentation fresh.")]
+    #[tool(
+        name = "record_session",
+        description = "Record session history AND sync project docs. Scans for new files, routes, and schema changes — updates .palbox/architecture.md + database.md + flows/ automatically. Use this after every completed task to keep documentation fresh."
+    )]
     fn record_session(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "record_session", &format!("Recording: {}", p.task), &p.task);
         let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
@@ -327,20 +302,42 @@ impl AppState {
     }
 }
 
-// ── Plan writer ──────────────────────────────────────────────────
+// ── Fast file listing (no CBM, no deep grep) ────────────────────
 
-/// Write execution plan to .palbox/plans/<name>.md
-fn write_plan(root: &std::path::Path, name: &str, content: &str) -> anyhow::Result<PathBuf> {
-    let dir = root.join(".palbox").join("plans");
-    std::fs::create_dir_all(&dir)?;
-    let filename = format!(
-        "{}-{}.md",
-        chrono::Local::now().format("%Y-%m-%d"),
-        name.trim_matches('-')
+/// Quick shallow file listing — skip node_modules/target/.git.
+/// Used when CBM index is unavailable to avoid 15+ minute grep scans.
+/// Returns up to 30 source files matching the task keywords.
+fn quick_file_listing(root: &std::path::Path, task: &str) -> Vec<String> {
+    let keywords: Vec<&str> = task
+        .split(|c: char| c.is_whitespace() || c == '-' || c == '_' || c == '/' || c == '.')
+        .filter(|w| w.len() > 2)
+        .collect();
+
+    if keywords.is_empty() {
+        return vec![];
+    }
+
+    // Use rg -l with excludes — fast, no deep grep, just file listing
+    let kw_pattern = keywords.join("|");
+    let cmd = format!(
+        "rg -l --max-count 1 --max-depth 3 --glob '!node_modules/**' --glob '!target/**' --glob '!.git/**' --glob '!**/node_modules/**' '{}' 2>/dev/null | head -30",
+        kw_pattern
     );
-    let path = dir.join(&filename);
-    std::fs::write(&path, content)?;
-    Ok(path)
+
+    if let Ok(out) = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&cmd)
+        .current_dir(root)
+        .output()
+    {
+        return String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+    }
+
+    vec![]
 }
 
 // ── Entry point ──────────────────────────────────────────────────
@@ -352,7 +349,7 @@ pub async fn run_server(
     let state = AppState { palbox: palbox.clone(), cbm_path };
 
     let transport = (tokio::io::stdin(), FlushingWriter { inner: tokio::io::stdout() });
-    eprintln!("[palskills-engine] MCP server starting — 6 tools (orchestrate, plan, scan_context, dispatch, run_tests, record_session)");
+    eprintln!("[palskills-engine] MCP server starting — 5 tools (orchestrate, scan_context, dispatch, run_tests, record_session)");
     eprintln!("[palskills-engine] Palbox: {}", palbox.display());
     let service = state.serve(transport).await?;
     eprintln!("[palskills-engine] Connected.");

@@ -1,14 +1,14 @@
 //! Generator — persist pipeline state and session history.
 //! State.md is the single source of truth for dashboard display.
 //!
-//! 6 skills: orchestrate, plan, scan_context, dispatch, run_tests, record_session
+//! 5 skills: orchestrate, scan_context, dispatch, run_tests, record_session
 
 use std::path::{Path, PathBuf};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 // ── State.md types ──────────────────────────────────────────────
-// 6 skills: orchestrate → plan → scan_context → dispatch → run_tests → record_session
+// 5 skills: orchestrate → scan_context → dispatch → run_tests → record_session
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillState {
@@ -33,7 +33,6 @@ pub struct PipelineState {
 
 const ALL_SKILLS: &[&str] = &[
     "orchestrate",
-    "plan",
     "scan_context",
     "dispatch",
     "run_tests",
