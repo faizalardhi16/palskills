@@ -11,8 +11,13 @@ use serde::Serialize;
 pub struct PalboxContext {
     pub architecture_summary: Option<String>,
     pub database_summary: Option<String>,
+    pub decisions: Vec<String>,
+    pub modules: Vec<String>,
+    pub api_contracts: Vec<String>,
+    pub lessons: Vec<String>,
     pub recent_flows: Vec<String>,
     pub recent_sessions: Vec<String>,
+    pub latest_plan: Option<String>,
     pub docs_found: usize,
 }
 
@@ -22,8 +27,13 @@ pub fn read_docs(project_root: &Path, _task: &str) -> PalboxContext {
     let mut ctx = PalboxContext {
         architecture_summary: None,
         database_summary: None,
+        decisions: Vec::new(),
+        modules: Vec::new(),
+        api_contracts: Vec::new(),
+        lessons: Vec::new(),
         recent_flows: Vec::new(),
         recent_sessions: Vec::new(),
+        latest_plan: None,
         docs_found: 0,
     };
 
@@ -51,7 +61,78 @@ pub fn read_docs(project_root: &Path, _task: &str) -> PalboxContext {
         }
     }
 
-    // 3. Flows/ — list recent flow files (last 3)
+    // 3. Decisions.md — last 5 ADRs (agent-written knowledge)
+    let decisions_path = palbox.join("decisions.md");
+    if let Ok(content) = std::fs::read_to_string(&decisions_path) {
+        ctx.decisions = content
+            .lines()
+            .filter(|l| l.trim().starts_with("- "))
+            .map(|l| l.trim().trim_start_matches("- ").to_string())
+            .take(5)
+            .collect();
+        if !ctx.decisions.is_empty() {
+            ctx.docs_found += 1;
+        }
+    }
+
+    // 4. Modules/ — list per-module knowledge
+    let modules_dir = palbox.join("modules");
+    if modules_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&modules_dir) {
+            let mut modules: Vec<String> = entries
+                .flatten()
+                .filter(|e| e.path().extension().map_or(false, |ext| ext == "md"))
+                .filter_map(|e| {
+                    let name = e.file_name().to_string_lossy().to_string();
+                    let path = e.path();
+                    std::fs::read_to_string(&path).ok().map(|content| {
+                        let purpose = content
+                            .lines()
+                            .skip_while(|l| !l.trim().starts_with("## Purpose"))
+                            .nth(1)
+                            .map(|l| l.trim().to_string())
+                            .unwrap_or_default();
+                        format!("- **{}**: {}", name.trim_end_matches(".md"), purpose)
+                    })
+                })
+                .collect();
+            modules.sort();
+            ctx.modules = modules;
+            if !ctx.modules.is_empty() {
+                ctx.docs_found += 1;
+            }
+        }
+    }
+
+    // 5. API.md — last 10 endpoint contracts
+    let api_path = palbox.join("api.md");
+    if let Ok(content) = std::fs::read_to_string(&api_path) {
+        ctx.api_contracts = content
+            .lines()
+            .filter(|l| l.trim().starts_with("- `"))
+            .map(|l| l.trim().trim_start_matches("- ").to_string())
+            .take(10)
+            .collect();
+        if !ctx.api_contracts.is_empty() {
+            ctx.docs_found += 1;
+        }
+    }
+
+    // 6. Lessons.md — last 5 lessons
+    let lessons_path = palbox.join("lessons.md");
+    if let Ok(content) = std::fs::read_to_string(&lessons_path) {
+        ctx.lessons = content
+            .lines()
+            .filter(|l| l.trim().starts_with("- "))
+            .map(|l| l.trim().trim_start_matches("- ").to_string())
+            .take(5)
+            .collect();
+        if !ctx.lessons.is_empty() {
+            ctx.docs_found += 1;
+        }
+    }
+
+    // 7. Flows/ — list recent flow files (last 3)
     let flows_dir = palbox.join("flows");
     if flows_dir.exists() {
         if let Ok(entries) = std::fs::read_dir(&flows_dir) {
@@ -74,7 +155,7 @@ pub fn read_docs(project_root: &Path, _task: &str) -> PalboxContext {
         }
     }
 
-    // 4. History/ — last 3 session summaries
+    // 8. History/ — last 3 session summaries
     let history_dir = palbox.join("history");
     if history_dir.exists() {
         if let Ok(entries) = std::fs::read_dir(&history_dir) {
@@ -85,7 +166,7 @@ pub fn read_docs(project_root: &Path, _task: &str) -> PalboxContext {
                     let name = e.file_name().to_string_lossy().to_string();
                     let path = e.path();
                     std::fs::read_to_string(&path).ok().map(|content| {
-                        let task = extract_field(&content, "## Task");
+                        let task = extract_field(&content, "## Summary");
                         format!("- **{}**: {}", name.trim_end_matches(".md"), task)
                     })
                 })
@@ -94,6 +175,27 @@ pub fn read_docs(project_root: &Path, _task: &str) -> PalboxContext {
             ctx.recent_sessions = files.into_iter().take(3).collect();
             if !ctx.recent_sessions.is_empty() {
                 ctx.docs_found += 1;
+            }
+        }
+    }
+
+    // 9. Plans/ — most recent advisory plan (first 20 lines)
+    let plans_dir = palbox.join("plans");
+    if plans_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&plans_dir) {
+            let mut files: Vec<_> = entries
+                .flatten()
+                .filter(|e| e.path().extension().map_or(false, |ext| ext == "md"))
+                .collect();
+            files.sort_by_key(|e| e.file_name());
+            if let Some(latest) = files.last() {
+                if let Ok(content) = std::fs::read_to_string(latest.path()) {
+                    let preview: String = content.lines().take(20).collect::<Vec<_>>().join("\n");
+                    if !preview.is_empty() {
+                        ctx.latest_plan = Some(preview);
+                        ctx.docs_found += 1;
+                    }
+                }
             }
         }
     }

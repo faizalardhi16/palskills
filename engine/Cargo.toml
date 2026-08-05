@@ -1,8 +1,8 @@
 [package]
 name = "palskills-engine"
-version = "3.4.0"
+version = "3.5.0"
 edition = "2021"
-description = "Palskills Engine — CBM-aware MCP orchestration with 5 tools. Slim dispatch (SOLID contract gate, no subprocess). Advisory planning merged into orchestrate. Fast scan_context (skips deep grep when no CBM)."
+description = "Palskills Engine — CBM-aware MCP orchestration. v3.5: .palbox/ = AI knowledge base (decisions, modules, api, lessons). record_session takes structured knowledge, scan_context reads it all back."
 
 [[bin]]
 name = "palskills-engine"

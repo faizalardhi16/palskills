@@ -247,12 +247,25 @@ pub fn update_skill_state(
 
 // ── Session recording ───────────────────────────────────────────
 
-/// Record session to .palbox/history/<date-task>.md
-pub fn record_session(project_root: &Path, task: &str, content: &str) -> Result<PathBuf> {
+/// Structured knowledge captured from a completed task.
+/// Written by the AGENT (LLM), stored by the engine — this is what makes
+/// .palbox/ a real knowledge base instead of a file list.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SessionKnowledge {
+    pub summary: String,
+    pub decisions: Vec<String>,
+    pub modules: Vec<String>,
+    pub lessons: Vec<String>,
+    pub api: Vec<String>,
+}
+
+/// Record session knowledge to .palbox/history/<date-task>.md
+pub fn record_session(project_root: &Path, k: &SessionKnowledge) -> Result<PathBuf> {
     let dir = project_root.join(".palbox").join("history");
     std::fs::create_dir_all(&dir)?;
 
-    let name: String = task
+    let name: String = k
+        .summary
         .chars()
         .take(50)
         .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
@@ -260,6 +273,44 @@ pub fn record_session(project_root: &Path, task: &str, content: &str) -> Result<
 
     let filename = format!("{}-{}.md", chrono::Local::now().format("%Y-%m-%d"), name.trim_matches('-'));
     let path = dir.join(&filename);
+
+    let mut content = String::new();
+    content.push_str(&format!(
+        "# Session: {}\n**Date:** {}\n\n",
+        k.summary,
+        chrono::Local::now().format("%Y-%m-%d %H:%M")
+    ));
+    content.push_str(&format!("## Summary\n{}\n\n", k.summary));
+
+    if !k.decisions.is_empty() {
+        content.push_str("## Decisions\n");
+        for d in &k.decisions {
+            content.push_str(&format!("- {}\n", d));
+        }
+        content.push('\n');
+    }
+    if !k.modules.is_empty() {
+        content.push_str("## Modules\n");
+        for m in &k.modules {
+            content.push_str(&format!("- {}\n", m));
+        }
+        content.push('\n');
+    }
+    if !k.api.is_empty() {
+        content.push_str("## API\n");
+        for a in &k.api {
+            content.push_str(&format!("- `{}`\n", a));
+        }
+        content.push('\n');
+    }
+    if !k.lessons.is_empty() {
+        content.push_str("## Lessons\n");
+        for l in &k.lessons {
+            content.push_str(&format!("- {}\n", l));
+        }
+        content.push('\n');
+    }
+
     std::fs::write(&path, content)?;
     Ok(path)
 }
@@ -268,8 +319,9 @@ pub fn record_session(project_root: &Path, task: &str, content: &str) -> Result<
 
 /// After a task completes, scan the project and update .palbox/ docs.
 /// Patches architecture.md with new components/files, checks for database
-/// schema changes, and updates flow documentation.
-pub fn sync_docs(project_root: &Path, task: &str) -> Result<String> {
+/// schema changes, updates flow documentation, AND persists structured
+/// knowledge (decisions, modules, api) written by the agent.
+pub fn sync_docs(project_root: &Path, task: &str, k: &SessionKnowledge) -> Result<String> {
     let palbox = project_root.join(".palbox");
     std::fs::create_dir_all(&palbox)?;
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M");
@@ -346,6 +398,92 @@ pub fn sync_docs(project_root: &Path, task: &str) -> Result<String> {
         let flow_path = flows_dir.join(format!("{}.md", flow_name.trim_matches('-')));
         std::fs::write(&flow_path, flow_content)?;
         report.push_str(&format!("  ✅ Created flow: {}\n", flow_path.display()));
+    }
+
+    // ── 4. Decisions.md (ADR log — agent-written knowledge) ──
+    if !k.decisions.is_empty() {
+        let decisions_path = palbox.join("decisions.md");
+        let section = format!(
+            "### ADR: {}\n\n**Date:** {}\n**Task:** {}\n\n{}\n\n",
+            now,
+            now,
+            task,
+            k.decisions.iter().map(|d| format!("- {}\n", d)).collect::<String>()
+        );
+        if decisions_path.exists() {
+            let mut existing = std::fs::read_to_string(&decisions_path)?;
+            existing.push_str(&section);
+            std::fs::write(&decisions_path, existing)?;
+        } else {
+            let decisions = format!("# Decisions (ADR)\n\n{}\n", section);
+            std::fs::write(&decisions_path, decisions)?;
+        }
+        report.push_str(&format!("  ✅ Updated decisions.md ({} ADRs)\n", k.decisions.len()));
+    }
+
+    // ── 5. Modules/ (per-module knowledge files) ──
+    if !k.modules.is_empty() {
+        let modules_dir = palbox.join("modules");
+        std::fs::create_dir_all(&modules_dir)?;
+        for m in &k.modules {
+            // Format: "module_name: description" or "name — description"
+            let (name, desc) = match m.split_once(':') {
+                Some((n, d)) => (n.trim(), d.trim().to_string()),
+                None => (m.as_str(), String::new()),
+            };
+            let safe: String = name
+                .chars()
+                .take(30)
+                .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+                .collect();
+            let module_path = modules_dir.join(format!("{}.md", safe.trim_matches('-')));
+            let content = format!(
+                "# Module: {}\n\n**Last updated:** {}\n\n## Purpose\n\n{}\n\n## Source\n\n_Recorded from task: {}_\n",
+                name, now, desc, task
+            );
+            std::fs::write(&module_path, content)?;
+        }
+        report.push_str(&format!("  ✅ Updated modules/ ({} modules)\n", k.modules.len()));
+    }
+
+    // ── 6. API.md (endpoint contracts — agent-written knowledge) ──
+    if !k.api.is_empty() {
+        let api_path = palbox.join("api.md");
+        let section = format!(
+            "## Update: {}\n\n**Task:** {}\n\n{}\n\n",
+            now,
+            task,
+            k.api.iter().map(|a| format!("- `{}`\n", a)).collect::<String>()
+        );
+        if api_path.exists() {
+            let mut existing = std::fs::read_to_string(&api_path)?;
+            existing.push_str(&section);
+            std::fs::write(&api_path, existing)?;
+        } else {
+            let api = format!("# API Contracts\n\n{}\n", section);
+            std::fs::write(&api_path, api)?;
+        }
+        report.push_str(&format!("  ✅ Updated api.md ({} endpoints)\n", k.api.len()));
+    }
+
+    // ── 7. Lessons.md (accumulated lessons) ──
+    if !k.lessons.is_empty() {
+        let lessons_path = palbox.join("lessons.md");
+        let section = format!(
+            "## {}\n\n**Task:** {}\n\n{}\n\n",
+            now,
+            task,
+            k.lessons.iter().map(|l| format!("- {}\n", l)).collect::<String>()
+        );
+        if lessons_path.exists() {
+            let mut existing = std::fs::read_to_string(&lessons_path)?;
+            existing.push_str(&section);
+            std::fs::write(&lessons_path, existing)?;
+        } else {
+            let lessons = format!("# Lessons Learned\n\n{}\n", section);
+            std::fs::write(&lessons_path, lessons)?;
+        }
+        report.push_str(&format!("  ✅ Updated lessons.md ({} lessons)\n", k.lessons.len()));
     }
 
     Ok(report)

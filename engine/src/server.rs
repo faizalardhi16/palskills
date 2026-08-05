@@ -35,6 +35,22 @@ pub struct TaskParams {
     pub task: String,
 }
 
+/// Structured knowledge params for record_session.
+/// Agent fills these with REAL knowledge — not file lists.
+#[derive(Deserialize, JsonSchema)]
+pub struct RecordSessionParams {
+    pub task: String,
+    pub summary: String,
+    #[serde(default)]
+    pub decisions: Vec<String>,
+    #[serde(default)]
+    pub modules: Vec<String>,
+    #[serde(default)]
+    pub lessons: Vec<String>,
+    #[serde(default)]
+    pub api: Vec<String>,
+}
+
 /// Cursor MCP requires outputSchema type: "object".
 #[derive(Serialize, JsonSchema)]
 pub struct ToolOutput {
@@ -186,8 +202,13 @@ impl AppState {
             source: String,
             architecture: Option<String>,
             database: Option<String>,
+            decisions: Vec<String>,
+            modules: Vec<String>,
+            api_contracts: Vec<String>,
+            lessons: Vec<String>,
             recent_flows: Vec<String>,
             recent_sessions: Vec<String>,
+            latest_plan: Option<String>,
         }
 
         let output = ContextOutput {
@@ -196,8 +217,13 @@ impl AppState {
             source: cbm.as_ref().map(|c| c.source.clone()).unwrap_or_else(|| "none".into()),
             architecture: docs.architecture_summary,
             database: docs.database_summary,
+            decisions: docs.decisions,
+            modules: docs.modules,
+            api_contracts: docs.api_contracts,
+            lessons: docs.lessons,
             recent_flows: docs.recent_flows,
             recent_sessions: docs.recent_sessions,
+            latest_plan: docs.latest_plan,
         };
 
         let msg = format!(
@@ -245,26 +271,30 @@ impl AppState {
         out("🧪 No test runner detected.".into())
     }
 
-    /// Panthalus: Persist session + sync docs to .palbox/.
+    /// Panthalus: Persist session knowledge + sync docs to .palbox/.
+    /// Agent MUST pass structured knowledge — summary, decisions, modules,
+    /// lessons, api — NOT file lists. This is what makes .palbox/ a knowledge
+    /// base that future sessions read via scan_context.
     #[tool(
         name = "record_session",
-        description = "Record session history AND sync project docs. Scans for new files, routes, and schema changes — updates .palbox/architecture.md + database.md + flows/ automatically. Use this after every completed task to keep documentation fresh."
+        description = "Record session knowledge AND sync docs. Pass structured knowledge: summary (what was done), decisions (why), modules (what each does), lessons (gotchas), api (endpoints). This builds .palbox/ knowledge base for future sessions."
     )]
-    fn record_session(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
+    fn record_session(&self, Parameters(p): Parameters<RecordSessionParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "record_session", &format!("Recording: {}", p.task), &p.task);
         let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
 
-        let session = format!(
-            "# Session: {}\n**Date:** {}\n**Author:** Panthalus\n\n## Task\n{}\n\n## Files changed\n[tba — fill after review]\n\n## Decisions\n[tba]\n\n## SOLID compliance\n- [ ] Single Responsibility: each class/module has one reason to change\n- [ ] Open-Closed: extended without modifying existing code\n- [ ] Liskov: subtypes substitutable for base types\n- [ ] Interface Segregation: no unused method dependencies\n- [ ] Dependency Inversion: depends on abstractions, not concretions\n\n## Lessons\n[tba]\n",
-            p.task,
-            chrono::Local::now().format("%Y-%m-%d %H:%M"),
-            p.task
-        );
+        let knowledge = generator::SessionKnowledge {
+            summary: p.summary.clone(),
+            decisions: p.decisions.clone(),
+            modules: p.modules.clone(),
+            lessons: p.lessons.clone(),
+            api: p.api.clone(),
+        };
 
         let mut report = String::new();
 
-        // 1. Record session history
-        match generator::record_session(root, &p.task, &session) {
+        // 1. Record session history with knowledge
+        match generator::record_session(root, &knowledge) {
             Ok(path) => {
                 report.push_str(&format!("✅ Session recorded: {}\n", path.display()));
             }
@@ -273,8 +303,8 @@ impl AppState {
             }
         }
 
-        // 2. Sync docs back to .palbox/
-        match generator::sync_docs(root, &p.task) {
+        // 2. Sync docs (architecture, database, flows + decisions, modules, api, lessons)
+        match generator::sync_docs(root, &p.task, &knowledge) {
             Ok(sync_report) => {
                 report.push_str(&format!("\n📄 Docs synced:\n{sync_report}"));
             }
@@ -283,7 +313,7 @@ impl AppState {
             }
         }
 
-        let msg = format!("Session + docs synced ({} chars)", report.len());
+        let msg = format!("Knowledge recorded ({} chars)", report.len());
         tool_done(&self.palbox, "record_session", &msg, timer, &p.task, None, None);
         out(report)
     }
