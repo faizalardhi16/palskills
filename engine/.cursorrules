@@ -1,80 +1,75 @@
 # Palskills Engine — AI Agent Rules
-# v3.4.3 — 5-tool pipeline, dispatch = zero I/O
+# v3.5.0 — 5-tool pipeline + .palbox/ knowledge base
 
 ## Pipeline (MANDATORY — follow this order)
 
 ```
 orchestrate → scan_context → dispatch → run_tests → record_session
-     ↓            ↓              ↓
-  flow +      ALL context    SOLID only
+     ↓            ↓              ↓            ↓            ↓
+  flow +      ALL context    SOLID only    verify      WRITE KNOWLEDGE
   plan        (CBM+palbox)   (zero I/O)
 ```
 
+## Knowledge base loop (CRITICAL)
+
+.palbox/ is a **knowledge base**, not a file list. Every task you complete
+must leave behind KNOWLEDGE that future sessions read:
+
+```
+task selesai → record_session(summary, decisions, modules, lessons, api)
+→ scan_context berikutnya baca semua → agent gak perlu re-scan codebase
+```
+
 ### 1. orchestrate
-Analyze task intent + generate advisory plan.
-- Returns: flow, confidence %, CBM symbols/files, advisory plan (auto-saved to .palbox/plans/)
-- **NO blocking** — if plan is generated, read it inline and proceed immediately
+Analyze task intent + generate advisory plan (auto-saved to .palbox/plans/).
+- Returns: flow, confidence %, CBM symbols/files
+- **NO blocking** — read plan inline, proceed immediately
 
 ### 2. scan_context — THE context source
-**This is where ALL project context comes from.**
-- CBM indexed? Returns symbols + files instantly
-- No CBM? Fast-path: light file listing (<1 sec)
-- Also returns: architecture.md, database.md, recent flows, session history
-- **Do NOT skip** — dispatch provides ZERO context, scan_context is everything
+**Semua knowledge ada di sini:**
+- CBM symbols/files (code)
+- `decisions` — kenapa arsitektur begini
+- `modules` — tiap module ngapain
+- `api_contracts` — endpoint + request/response
+- `lessons` — gotchas, hal yang pernah salah
+- `architecture`, `database`, `recent_flows`, `recent_sessions`, `latest_plan`
+- **READ ALL OF IT** sebelum nulis kode — itu peta project lo
+- Kalau ada `latest_plan`, follow it
 
-### 3. dispatch — SOLID gate only (zero I/O)
-Pure discipline gate. Returns ONLY SOLID principles:
-```json
-{
-  "task": "...",
-  "constraints": "## SOLID Principles (MANDATORY)...",
-  "gate": "🎯 EXECUTE with SOLID. No shortcuts..."
-}
-```
-- **ZERO I/O** — <1ms, no CBM, no grep, no file reads
-- Read the contract, then apply it when writing code
-- Context already came from scan_context — don't re-query
+### 3. dispatch — SOLID gate (zero I/O)
+Returns SOLID principles contract. Read it, apply it. <1ms.
 
 ### 4. run_tests
-Auto-detect test runner (pytest, cargo test, npm test).
-- Run after every code change
-- Fail = fix and re-run
-- Pass = proceed to record_session
+Auto-detect runner (pytest, cargo test, npm test). Fail → fix → re-run.
 
-### 5. record_session
-Save session history + sync .palbox/ docs.
-- Writes .palbox/history/<date-task>.md
-- Auto-updates architecture.md, database.md, flows/
-- Scans project files (capped at 300, <2 sec)
-- **Always call this after completing a task**
-
-## Code quality (enforced by dispatch contract)
-
-- Single Responsibility: one module/class = one reason to change
-- Open-Closed: extend via composition, never modify existing
-- Liskov: subtypes honor full contract
-- Interface Segregation: small focused interfaces
-- Dependency Inversion: depend on abstractions
-- Zero duplication: extract shared logic
-- No magic numbers: constants named + documented
-- YAGNI: only build what's needed now
-- Tests alongside (TDD: RED → GREEN → REFACTOR)
+### 5. record_session — WRITE KNOWLEDGE (MANDATORY)
+**JANGAN cuma nulis "selesai bikin X". Isi knowledge-nya:**
+```json
+record_session({
+  "task": "build login system",
+  "summary": "JWT auth flow: login → access token 15m + refresh token 7d",
+  "decisions": ["JWT dipilih karena stateless, gak perlu session store"],
+  "modules": ["auth: handle JWT issue/verify, files src/auth/*"],
+  "lessons": ["JWT secret WAJIB dari env, jangan hardcode"],
+  "api": ["POST /api/auth/login → {token, refreshToken}"]
+})
+```
+Engine simpan ke decisions.md, modules/, api.md, lessons.md.
+**Rule: kalau gak ada knowledge buat di-record, minimal summary WAJIB ada.**
 
 ## Before coding
-
-1. Call `orchestrate` — get flow + advisory plan
-2. Call `scan_context` — gather ALL context (code + docs + history)
-3. Call `dispatch` — get SOLID contract (instant)
-4. Code with SOLID + context from step 2
+1. `orchestrate` — flow + advisory plan
+2. `scan_context` — baca SEMUA knowledge (ini peta project lo)
+3. `dispatch` — SOLID contract
+4. Code dengan SOLID + knowledge dari step 2
 
 ## After coding
-
-1. Call `run_tests` — verify nothing broke
-2. Call `record_session` — save everything to .palbox/
+1. `run_tests` — verify
+2. `record_session` — **TULIS KNOWLEDGE** (summary wajib, decisions/modules/api/lessons kalau ada)
 
 ## Key rules
-
-- No blocking gates — proceed immediately after each tool
-- `scan_context` is the ONLY context source — dispatch is discipline only
+- `scan_context` = satu-satunya context source — dispatch cuma discipline
 - No grep/rg/manual browsing — tools cover everything
-- `record_session` MANDATORY after every task
+- `record_session` MANDATORY — kalau di-skip, knowledge loop putus
+- Knowledge = WHY + WHAT, bukan list file
+- No blocking gates — proceed immediately
