@@ -1,11 +1,12 @@
-//! Palskills Engine — CBM-aware MCP orchestration (5 tools).
+//! Palskills Engine — CBM-aware MCP orchestration (6 tools).
 //!
-//! Pipeline: orchestrate → scan_context → dispatch → run_tests → record_session
+//! Pipeline: orchestrate → plan → scan_context → dispatch → run_tests → record_session
+//! plan writes .palbox/plans/ for user review (say "Gas" to execute).
 //! record_session syncs docs (.palbox/architecture.md, database.md, flows/)
 //! after every completed task — keeping documentation in sync with reality.
 //!
 //!   palskills-engine init   → bootstrap .palbox/
-//!   palskills-engine serve  → MCP server (5 tools) + dashboard on http://localhost:3030
+//!   palskills-engine serve  → MCP server (6 tools) + dashboard on http://localhost:3030
 
 mod server;
 mod dashboard;
@@ -13,6 +14,7 @@ mod cbm_bridge;
 mod orchestrator;
 mod dispatch;
 mod generator;
+mod palbox_context;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -31,7 +33,7 @@ enum Command {
         #[arg(short, long, default_value = ".")]
         project: PathBuf,
     },
-    /// Start 5-tool MCP server + dashboard on :3030
+    /// Start 6-tool MCP server + dashboard on :3030
     Serve {
         #[arg(short, long)]
         project: Option<PathBuf>,

@@ -19,6 +19,7 @@ use crate::dashboard;
 use crate::dispatch;
 use crate::generator;
 use crate::orchestrator;
+use crate::palbox_context;
 
 // ── Shared state ─────────────────────────────────────────────────
 
@@ -138,28 +139,102 @@ impl AppState {
         }
     }
 
-    /// Lyleen: CBM-backed code search.
-    #[tool(name = "scan_context", description = "Search codebase via CBM or grep fallback. Returns relevant symbols, files, and paths. Use this to understand existing code before modifying.")]
+    /// Jetragon: Structured execution planner.
+    /// Writes .palbox/plans/<task>.md with files to touch, approach, risks, and
+    /// dependencies. Agent MUST present this plan to the user for review before
+    /// proceeding. User says "Gas" → continue to scan_context → dispatch.
+    #[tool(name = "plan", description = "Create structured execution plan. Writes .palbox/plans/<task>.md — files to touch, approach, risk assessment, dependencies, rollback. PRESENT TO USER for review. User says 'Gas' → continue.")]
+    fn plan(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
+        let timer = tool_start(&self.palbox, "plan", &format!("Planning: {}", p.task), &p.task);
+        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
+
+        // Get quick context (symbols only, no full scan)
+        let cbm = cbm_bridge::get_context(root, &p.task).unwrap_or_default();
+        let docs = palbox_context::read_docs(root, &p.task);
+
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M");
+        let plan_name: String = p.task
+            .chars()
+            .take(50)
+            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+            .collect();
+
+        let plan_content = format!(
+            "# Execution Plan: {}\n\n\
+             **Date:** {}\n\
+             **Status:** ⏳ Awaiting review\n\n\
+             ## Context\n\n\
+             - **Symbols found:** {}\n\
+             - **Files:** {}\n\
+             - **Docs in .palbox/:** {}\n\n\
+             ## Files to touch\n\n\
+             [tba — list files that will be created/modified]\n\n\
+             ## Approach\n\n\
+             [tba — step-by-step execution strategy]\n\n\
+             ## Risk assessment\n\n\
+             [tba — what could break, rollback plan]\n\n\
+             ## Dependencies\n\n\
+             [tba — other modules/tasks this depends on]\n\n\
+             ---\n\
+             > 👆 Review this plan. Reply **Gas** to execute, or request changes.\n",
+            p.task,
+            now,
+            cbm.symbols.len(),
+            cbm.files.len(),
+            docs.docs_found,
+        );
+
+        match write_plan(root, &plan_name, &plan_content) {
+            Ok(path) => {
+                let msg = format!("Plan written to {}", path.display());
+                tool_done(&self.palbox, "plan", &msg, timer, &p.task, None, None);
+                let result = format!(
+                    "{}\n\n📋 Plan saved. Review and say **Gas** to execute.\n\n{}",
+                    msg, plan_content
+                );
+                out(result)
+            }
+            Err(e) => {
+                tool_error(&self.palbox, "plan", &format!("Failed: {e}"), timer);
+                out(format!("Error: {e}"))
+            }
+        }
+    }
+
+    /// Lyleen: CBM-backed code search + palbox docs context.
+    #[tool(name = "scan_context", description = "Search codebase via CBM + read .palbox/ docs. Returns code symbols/files AND architecture summary, recent flows, and session history. Use this to understand BOTH existing code AND decisions from past sessions.")]
     fn scan_context(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "scan_context", &format!("Scanning: {}", p.task), &p.task);
         let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
 
         let cbm = cbm_bridge::get_context(root, &p.task).ok();
+        let docs = palbox_context::read_docs(root, &p.task);
 
         #[derive(Serialize)]
         struct ContextOutput {
             symbols: Vec<String>,
             files: Vec<String>,
             source: String,
+            architecture: Option<String>,
+            database: Option<String>,
+            recent_flows: Vec<String>,
+            recent_sessions: Vec<String>,
         }
 
         let output = ContextOutput {
             symbols: cbm.as_ref().map(|c| c.symbols.iter().map(|s| s.name.clone()).collect()).unwrap_or_default(),
             files: cbm.as_ref().map(|c| c.files.clone()).unwrap_or_default(),
             source: cbm.as_ref().map(|c| c.source.clone()).unwrap_or_else(|| "none".into()),
+            architecture: docs.architecture_summary,
+            database: docs.database_summary,
+            recent_flows: docs.recent_flows,
+            recent_sessions: docs.recent_sessions,
         };
 
-        let msg = format!("Found {} symbols, {} files (via {})", output.symbols.len(), output.files.len(), output.source);
+        let msg = format!(
+            "Found {} symbols, {} files (via {}) + {} docs from .palbox/",
+            output.symbols.len(), output.files.len(), output.source, docs.docs_found
+        );
         tool_done(&self.palbox, "scan_context", &msg, timer, &p.task, None, None);
         out(serde_json::to_string_pretty(&output).unwrap_or_default())
     }
@@ -252,6 +327,22 @@ impl AppState {
     }
 }
 
+// ── Plan writer ──────────────────────────────────────────────────
+
+/// Write execution plan to .palbox/plans/<name>.md
+fn write_plan(root: &std::path::Path, name: &str, content: &str) -> anyhow::Result<PathBuf> {
+    let dir = root.join(".palbox").join("plans");
+    std::fs::create_dir_all(&dir)?;
+    let filename = format!(
+        "{}-{}.md",
+        chrono::Local::now().format("%Y-%m-%d"),
+        name.trim_matches('-')
+    );
+    let path = dir.join(&filename);
+    std::fs::write(&path, content)?;
+    Ok(path)
+}
+
 // ── Entry point ──────────────────────────────────────────────────
 
 pub async fn run_server(
@@ -261,7 +352,7 @@ pub async fn run_server(
     let state = AppState { palbox: palbox.clone(), cbm_path };
 
     let transport = (tokio::io::stdin(), FlushingWriter { inner: tokio::io::stdout() });
-    eprintln!("[palskills-engine] MCP server starting — 5 tools (orchestrate, scan_context, dispatch, run_tests, record_session)");
+    eprintln!("[palskills-engine] MCP server starting — 6 tools (orchestrate, plan, scan_context, dispatch, run_tests, record_session)");
     eprintln!("[palskills-engine] Palbox: {}", palbox.display());
     let service = state.serve(transport).await?;
     eprintln!("[palskills-engine] Connected.");
