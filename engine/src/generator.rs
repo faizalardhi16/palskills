@@ -29,6 +29,8 @@ pub struct PipelineState {
     pub stats_nodes: Option<usize>,
     pub stats_symbols: Option<usize>,
     pub stats_files: Option<usize>,
+    /// Auto-appended audit trail — every tool call logged here by the engine.
+    pub session_log: Vec<String>,
 }
 
 const ALL_SKILLS: &[&str] = &[
@@ -68,6 +70,7 @@ fn default_state() -> PipelineState {
         stats_nodes: None,
         stats_symbols: None,
         stats_files: None,
+        session_log: vec![],
     }
 }
 
@@ -110,6 +113,15 @@ fn parse_state_md(content: &str) -> PipelineState {
                 }
             }
         }
+        // Session log lines: "- HH:MM:SS [skill] message"
+        if line.starts_with("- ") && line.contains("[") && line.contains("]") {
+            state.session_log.push(line.to_string());
+        }
+    }
+    // Cap session log to last 200 entries
+    if state.session_log.len() > 200 {
+        let keep = state.session_log.len() - 200;
+        state.session_log.drain(..keep);
     }
     state
 }
@@ -160,6 +172,17 @@ pub fn write_state(palbox: &Path, state: &PipelineState) -> Result<()> {
         ));
     }
 
+    // Session log — audit trail of every tool call
+    out.push_str("\n## 📜 Session Log\n\n");
+    if state.session_log.is_empty() {
+        out.push_str("_No tool calls recorded yet._\n");
+    } else {
+        for entry in &state.session_log {
+            out.push_str(entry);
+            out.push('\n');
+        }
+    }
+
     std::fs::create_dir_all(palbox)?;
     std::fs::write(&path, out)?;
     Ok(())
@@ -191,6 +214,32 @@ pub fn update_skill_state(
         }
         if let Some(d) = duration_ms { s.duration_ms = Some(d); }
         if let Some(m) = message { s.message = Some(m.to_string()); }
+    }
+
+    // Auto-append audit trail — engine-enforced, agent cannot skip
+    let icon = match status {
+        "done" => "✅",
+        "inprogress" => "🔄",
+        "error" => "❌",
+        _ => "⏳",
+    };
+    let dur = duration_ms.map_or(String::new(), |d| format!(" ({}ms)", d));
+    let task_label = task.map(|t| format!(" · {}", t)).unwrap_or_default();
+    let msg = message.unwrap_or("");
+    let entry = format!(
+        "- {} {} `{}` {} — {}{}{}",
+        chrono::Local::now().format("%H:%M:%S"),
+        icon,
+        skill,
+        status,
+        msg,
+        dur,
+        task_label
+    );
+    state.session_log.push(entry);
+    if state.session_log.len() > 200 {
+        let keep = state.session_log.len() - 200;
+        state.session_log.drain(..keep);
     }
 
     write_state(palbox, &state)
