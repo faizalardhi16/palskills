@@ -15,7 +15,9 @@ mod cbm_bridge;
 mod orchestrator;
 mod dispatch;
 mod generator;
+mod git_knowledge;
 mod palbox_context;
+mod planner;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -34,12 +36,22 @@ enum Command {
         #[arg(short, long, default_value = ".")]
         project: PathBuf,
     },
-    /// Start 5-tool MCP server + dashboard on :3030
+    /// Start 6-tool MCP server + dashboard on :3030
     Serve {
         #[arg(short, long)]
         project: Option<PathBuf>,
         #[arg(long, default_value = "index.db")]
         cbm: PathBuf,
+    },
+    /// Auto-capture git commit metadata into .palbox/pending/ (Layer 1 knowledge)
+    SyncGit {
+        #[arg(short, long, default_value = ".")]
+        project: PathBuf,
+    },
+    /// Install post-commit git hook for auto-knowledge capture
+    InstallHook {
+        #[arg(short, long, default_value = ".")]
+        project: PathBuf,
     },
 }
 
@@ -88,6 +100,33 @@ fn main() -> anyhow::Result<()> {
             let palbox = project.join(".palbox");
             bootstrap(&palbox)?;
             log::info!("Run 'palskills-engine serve' to start.");
+        }
+        Command::SyncGit { project } => {
+            let root = project;
+            if !root.join(".git").exists() {
+                log::error!("Not a git repository: {}", root.display());
+                std::process::exit(1);
+            }
+            match git_knowledge::sync_git(&root) {
+                Ok((added, existing)) => {
+                    log::info!("✅ Git sync: {} new commits captured, {} already pending", added, existing);
+                }
+                Err(e) => {
+                    log::error!("Git sync failed: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        Command::InstallHook { project } => {
+            let root = project;
+            let engine_bin = std::env::current_exe()?.display().to_string();
+            match git_knowledge::install_hook(&root, &engine_bin) {
+                Ok(path) => log::info!("✅ post-commit hook installed: {}", path.display()),
+                Err(e) => {
+                    log::error!("Hook install failed: {e}");
+                    std::process::exit(1);
+                }
+            }
         }
         Command::Serve { project, cbm } => {
             let rt = tokio::runtime::Runtime::new()?;

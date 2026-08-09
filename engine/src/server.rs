@@ -18,8 +18,10 @@ use crate::cbm_bridge;
 use crate::dashboard;
 use crate::dispatch;
 use crate::generator;
+use crate::git_knowledge;
 use crate::orchestrator;
 use crate::palbox_context;
+use crate::planner;
 
 // ── Shared state ─────────────────────────────────────────────────
 
@@ -49,6 +51,13 @@ pub struct RecordSessionParams {
     pub lessons: Vec<String>,
     #[serde(default)]
     pub api: Vec<String>,
+}
+
+/// Multi-issue planning params for the plan tool.
+/// Agent passes 3+ issues; engine groups by dependency and writes one plan per group.
+#[derive(Deserialize, JsonSchema)]
+pub struct PlanParams {
+    pub issues: Vec<planner::PlanIssue>,
 }
 
 /// Cursor MCP requires outputSchema type: "object".
@@ -167,11 +176,36 @@ impl AppState {
         }
     }
 
+    /// Jetdragon: multi-issue planning — group by dependency, one plan per group.
+    /// For 3+ issues, engine groups them (root-cause first) and writes structured
+    /// plan files to .palbox/plans/ with CBM impact analysis. One file per group.
+    #[tool(
+        name = "plan",
+        description = "Multi-issue planning. Pass 3+ issues; engine groups by dependency (root cause first, shared state machine together, independent separate) and writes ONE plan file per group to .palbox/plans/ with CBM impact analysis. Use before execution for multi-issue requests."
+    )]
+    fn plan(&self, Parameters(p): Parameters<PlanParams>) -> Json<ToolOutput> {
+        let task_hint = p.issues.first().map(|i| i.title.clone()).unwrap_or_else(|| "multi-issue".into());
+        let timer = tool_start(&self.palbox, "plan", &format!("Planning {} issues...", p.issues.len()), &task_hint);
+        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
+
+        match planner::plan_multi(root, p.issues) {
+            Ok(output) => {
+                let summary = output.summary.clone();
+                tool_done(&self.palbox, "plan", &summary, timer, &task_hint, None, Some(output.confidence));
+                out(serde_json::to_string_pretty(&output).unwrap_or_default())
+            }
+            Err(e) => {
+                tool_error(&self.palbox, "plan", &format!("Error: {e}"), timer);
+                out(format!("Error: {e}"))
+            }
+        }
+    }
+
     /// Lyleen: CBM-backed code search + palbox docs context.
     /// Fast: skips deep grep when CBM unavailable — returns light listing + docs.
     #[tool(
         name = "scan_context",
-        description = "Search codebase via CBM + read .palbox/ docs. Returns code symbols/files AND architecture summary, recent flows, and session history. Fast — skips deep grep when no CBM, returns light file listing instead."
+        description = "Search codebase via CBM + read .palbox/ docs. Returns code symbols/files AND architecture summary, recent flows, and session history. Fast — skips deep grep when no CBM, returns light file listing instead. Also flags unrecorded git commits in .palbox/pending/."
     )]
     fn scan_context(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "scan_context", &format!("Scanning: {}", p.task), &p.task);
@@ -209,7 +243,23 @@ impl AppState {
             recent_flows: Vec<String>,
             recent_sessions: Vec<String>,
             latest_plan: Option<String>,
+            pending_commits: Vec<PendingOut>,
         }
+
+        #[derive(Serialize)]
+        struct PendingOut {
+            hash: String,
+            message: String,
+            files: Vec<String>,
+        }
+
+        // Unrecorded git commits — Layer 1 knowledge waiting for consolidation
+        let pending = git_knowledge::read_unrecorded(root);
+        let pending_out: Vec<PendingOut> = pending
+            .iter()
+            .take(10)
+            .map(|c| PendingOut { hash: c.hash.clone(), message: c.message.clone(), files: c.files.clone() })
+            .collect();
 
         let output = ContextOutput {
             symbols: cbm.as_ref().map(|c| c.symbols.iter().map(|s| s.name.clone()).collect()).unwrap_or_default(),
@@ -224,12 +274,16 @@ impl AppState {
             recent_flows: docs.recent_flows,
             recent_sessions: docs.recent_sessions,
             latest_plan: docs.latest_plan,
+            pending_commits: pending_out,
         };
 
-        let msg = format!(
+        let mut msg = format!(
             "Found {} symbols, {} files (via {}) + {} docs from .palbox/",
             output.symbols.len(), output.files.len(), output.source, docs.docs_found
         );
+        if !pending.is_empty() {
+            msg.push_str(&format!(" | ⚠️ {} unrecorded git commits — consider record_session", pending.len()));
+        }
         tool_done(&self.palbox, "scan_context", &msg, timer, &p.task, None, None);
         out(serde_json::to_string_pretty(&output).unwrap_or_default())
     }
@@ -248,14 +302,23 @@ impl AppState {
         out(serde_json::to_string_pretty(&contract).unwrap_or_default())
     }
 
-    /// Verdash: Run actual test suite.
+    /// Verdash: Run actual test suite (diff-aware).
     #[tool(
         name = "run_tests",
-        description = "Run project test suite. Auto-detects runner (pytest, cargo test, npm test). Returns pass/fail results. Fails are SOFT BLOCKERS — fix and re-run."
+        description = "Run project test suite. Auto-detects runner (pytest, cargo test, npm test). Returns pass/fail results AND changed files from git diff (impact). Fails are SOFT BLOCKERS — fix and re-run."
     )]
     fn run_tests(&self) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "run_tests", "Running tests...", "tests");
+        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
         let commands = ["pytest -x --tb=short", "cargo test --quiet", "npm test -- --reporter=min"];
+
+        // Diff-aware: list changed files for impact context
+        let changed = git_knowledge::diff_files(root, "HEAD");
+        let impact_note = if changed.is_empty() {
+            String::new()
+        } else {
+            format!("\n📝 Changed files (git diff HEAD):\n{}\n", changed.iter().map(|f| format!("  - {f}")).collect::<Vec<_>>().join("\n"))
+        };
 
         for cmd in &commands {
             if let Ok(result) = std::process::Command::new("sh").arg("-c").arg(cmd).output() {
@@ -263,21 +326,22 @@ impl AppState {
                 let stderr = String::from_utf8_lossy(&result.stderr);
                 if stdout.contains("pass") || stdout.contains("ok") || result.status.success() {
                     tool_done(&self.palbox, "run_tests", "Tests passed ✓", timer, "tests", None, None);
-                    return out(format!("🧪 Tests passed:\n{stdout}\n{stderr}"));
+                    return out(format!("🧪 Tests passed:\n{stdout}\n{stderr}{impact_note}"));
                 }
             }
         }
         tool_error(&self.palbox, "run_tests", "No test runner found", timer);
-        out("🧪 No test runner detected.".into())
+        out(format!("🧪 No test runner detected.{impact_note}"))
     }
 
     /// Panthalus: Persist session knowledge + sync docs to .palbox/.
     /// Agent MUST pass structured knowledge — summary, decisions, modules,
     /// lessons, api — NOT file lists. This is what makes .palbox/ a knowledge
     /// base that future sessions read via scan_context.
+    /// Also consumes unrecorded git commits from .palbox/pending/ (Layer 1).
     #[tool(
         name = "record_session",
-        description = "Record session knowledge AND sync docs. Pass structured knowledge: summary (what was done), decisions (why), modules (what each does), lessons (gotchas), api (endpoints). This builds .palbox/ knowledge base for future sessions."
+        description = "Record session knowledge AND sync docs. Pass structured knowledge: summary (what was done), decisions (why), modules (what each does), lessons (gotchas), api (endpoints). This builds .palbox/ knowledge base for future sessions. Also marks pending git commits as recorded."
     )]
     fn record_session(&self, Parameters(p): Parameters<RecordSessionParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "record_session", &format!("Recording: {}", p.task), &p.task);
@@ -293,6 +357,16 @@ impl AppState {
 
         let mut report = String::new();
 
+        // 0. Layer 1: show unrecorded git commits as context (WHAT), agent adds WHY
+        let pending = git_knowledge::read_unrecorded(root);
+        if !pending.is_empty() {
+            report.push_str(&format!("📥 {} unrecorded git commit(s) — captured metadata:\n", pending.len()));
+            for c in pending.iter().take(5) {
+                report.push_str(&format!("  - `{}` {}\n", &c.hash[..c.hash.len().min(8)], c.message));
+            }
+            report.push('\n');
+        }
+
         // 1. Record session history with knowledge
         match generator::record_session(root, &knowledge) {
             Ok(path) => {
@@ -300,6 +374,15 @@ impl AppState {
             }
             Err(e) => {
                 report.push_str(&format!("⚠ Session recording failed: {e}\n"));
+            }
+        }
+
+        // 1.5 Mark pending git commits as recorded (Layer 1 consumed)
+        if !pending.is_empty() {
+            let hashes: Vec<String> = pending.iter().map(|c| c.hash.clone()).collect();
+            match git_knowledge::mark_recorded(root, &hashes) {
+                Ok(n) => report.push_str(&format!("✅ {} pending commit(s) marked recorded\n", n)),
+                Err(e) => report.push_str(&format!("⚠ Pending marking failed: {e}\n")),
             }
         }
 
@@ -328,7 +411,7 @@ pub async fn run_server(
     let state = AppState { palbox: palbox.clone(), cbm_path };
 
     let transport = (tokio::io::stdin(), FlushingWriter { inner: tokio::io::stdout() });
-    eprintln!("[palskills-engine] MCP server starting — 5 tools (orchestrate, scan_context, dispatch, run_tests, record_session)");
+    eprintln!("[palskills-engine] MCP server starting — 6 tools (orchestrate, plan, scan_context, dispatch, run_tests, record_session)");
     eprintln!("[palskills-engine] Palbox: {}", palbox.display());
     let service = state.serve(transport).await?;
     eprintln!("[palskills-engine] Connected.");
