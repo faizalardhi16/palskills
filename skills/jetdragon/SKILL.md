@@ -1,7 +1,7 @@
 ---
 name: jetdragon
 description: "Planning specialist — asks clarifying questions, generates detailed plans with [[wikilinks]] to palbox context, queries CBM for real codebase insights when available, and produces Codex-ready prompts."
-version: 2.0.0
+version: 2.1.0
 author: Palskills
 license: MIT
 platforms: [linux, macos, windows]
@@ -220,9 +220,22 @@ Verification: [criteria]
 2. **Plan before code** — wait for "Gas"
 3. **Save to `.palbox/plans/`** with `[[wikilinks]]` to context
 4. **Respect the graph** — plans align with linked architecture/methods
-5. **One plan per feature**
+5. **One plan per feature/group** — 3+ issues MUST be grouped by dependency BEFORE planning: one plan file per group, never one giant file
 6. **Always include Codex Prompt** — Anubis needs it
 7. **Link context, don't repeat** — use `[[wikilinks]]` instead of copy-pasting
 8. **CBM-aware planning** — query CBM at the right tier before generating plan
 9. **Always state confidence** — 95% (Tier 1), 85% (Tier 2), 70% (Tier 3) — so user knows how much to trust the plan
-10. **Tier 3 requires explicit user approval** — "Plan confidence 70%. Lanjut?" before proceeding
+10. **Tier 3 requires explicit user approval** — "Plan confidence 70%. Continue?" before proceeding
+
+## Plan Splitting (MANDATORY for multi-issue requests)
+
+When the user provides 3+ issues in one request, DO NOT generate one plan per issue in a flat list. Group FIRST, then plan per group:
+
+1. **Group by dependency:**
+   - Suspected shared root cause → ONE group (trace it once, fixes may resolve multiple issues)
+   - Features touching the same module/state machine → ONE group (keep changes consistent)
+   - Truly independent issues → separate groups
+2. **Identify root-cause candidates** — if one issue can cause others (e.g., timeouts breaking submit flows), isolate it as its own group and plan it FIRST.
+3. **Output: one plan file per group** — `.palbox/plans/YYYY-MM-DD-<group>.md`, never one giant file for everything.
+4. **Ask targeted questions only** — focus on genuinely ambiguous points (e.g., frontend vs backend timeout), not things already clear from the issues.
+5. **Order groups by execution priority** — root cause first, then dependent groups, then independent.
