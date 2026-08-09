@@ -1,6 +1,6 @@
 [package]
 name = "palskills-engine"
-version = "3.6.0"
+version = "3.6.1"
 edition = "2021"
 description = "Palskills Engine — CBM-aware MCP orchestration. v3.5: .palbox/ = AI knowledge base (decisions, modules, api, lessons). record_session takes structured knowledge, scan_context reads it all back."
 

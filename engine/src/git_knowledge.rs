@@ -78,10 +78,12 @@ pub fn mark_recorded(project_root: &Path, hashes: &[String]) -> Result<usize> {
     Ok(count)
 }
 
-/// Run `git log` since a marker (or full history) and capture metadata.
-/// Writes one JSON per commit into .palbox/pending/ (idempotent by hash).
-pub fn sync_git(project_root: &Path) -> Result<(usize, usize)> {
-    let dir = project_root.join(".palbox").join("pending");
+/// Run `git log` in project_root and capture commit metadata.
+/// Pending JSONs are written to palbox_root/.palbox/pending/ so a repo nested
+/// inside a bigger project can feed the SAME knowledge base (monorepo case).
+/// Writes one JSON per commit (idempotent by hash).
+pub fn sync_git(project_root: &Path, palbox_root: &Path) -> Result<(usize, usize)> {
+    let dir = palbox_root.join(".palbox").join("pending");
     std::fs::create_dir_all(&dir)?;
 
     // Existing hashes → skip duplicates
@@ -188,7 +190,9 @@ pub fn diff_files(project_root: &Path, base: &str) -> Vec<String> {
 
 /// Install a post-commit git hook that calls sync-git metadata capture.
 /// The hook is cheap (git log -n 30 + per-commit file listing, <200ms typical).
-pub fn install_hook(project_root: &Path, engine_bin: &str) -> Result<PathBuf> {
+/// `palbox_root` may differ from `project_root` (monorepo: repo nested in a
+/// bigger project whose .palbox/ lives at the top).
+pub fn install_hook(project_root: &Path, palbox_root: &Path, engine_bin: &str) -> Result<PathBuf> {
     let hooks = project_root.join(".git").join("hooks");
     std::fs::create_dir_all(&hooks)?;
     let hook_path = hooks.join("post-commit");
@@ -198,12 +202,13 @@ pub fn install_hook(project_root: &Path, engine_bin: &str) -> Result<PathBuf> {
 # Palskills — auto-capture commit metadata into .palbox/pending/
 # Layer 1 of knowledge recording. Layer 2 (rich WHY) happens via record_session.
 if command -v "{}" >/dev/null 2>&1; then
-  "{}" sync-git --project "{}" >/dev/null 2>&1 || true
+  "{}" sync-git --project "{}" --palbox "{}" >/dev/null 2>&1 || true
 fi
 "#,
         engine_bin,
         engine_bin,
-        project_root.display()
+        project_root.display(),
+        palbox_root.display()
     );
 
     std::fs::write(&hook_path, script)?;

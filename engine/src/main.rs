@@ -47,11 +47,17 @@ enum Command {
     SyncGit {
         #[arg(short, long, default_value = ".")]
         project: PathBuf,
+        /// Root containing .palbox/ — defaults to project (monorepo: point to parent)
+        #[arg(long)]
+        palbox: Option<PathBuf>,
     },
     /// Install post-commit git hook for auto-knowledge capture
     InstallHook {
         #[arg(short, long, default_value = ".")]
         project: PathBuf,
+        /// Root containing .palbox/ — defaults to project (monorepo: point to parent)
+        #[arg(long)]
+        palbox: Option<PathBuf>,
     },
 }
 
@@ -101,13 +107,14 @@ fn main() -> anyhow::Result<()> {
             bootstrap(&palbox)?;
             log::info!("Run 'palskills-engine serve' to start.");
         }
-        Command::SyncGit { project } => {
+        Command::SyncGit { project, palbox } => {
             let root = project;
             if !root.join(".git").exists() {
                 log::error!("Not a git repository: {}", root.display());
                 std::process::exit(1);
             }
-            match git_knowledge::sync_git(&root) {
+            let palbox_root = palbox.unwrap_or_else(|| root.clone());
+            match git_knowledge::sync_git(&root, &palbox_root) {
                 Ok((added, existing)) => {
                     log::info!("✅ Git sync: {} new commits captured, {} already pending", added, existing);
                 }
@@ -117,10 +124,11 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Command::InstallHook { project } => {
+        Command::InstallHook { project, palbox } => {
             let root = project;
+            let palbox_root = palbox.unwrap_or_else(|| root.clone());
             let engine_bin = std::env::current_exe()?.display().to_string();
-            match git_knowledge::install_hook(&root, &engine_bin) {
+            match git_knowledge::install_hook(&root, &palbox_root, &engine_bin) {
                 Ok(path) => log::info!("✅ post-commit hook installed: {}", path.display()),
                 Err(e) => {
                     log::error!("Hook install failed: {e}");
