@@ -27,7 +27,21 @@ const SOLID_PRINCIPLES: &str = r#"## SOLID Principles (MANDATORY)
 - **YAGNI** — only build what's needed now
 - **Self-documenting code** — comments explain WHY, not WHAT
 - **Error handling** — every fallible operation has explicit error handling
-- **Tests alongside** — new code requires tests (TDD: RED → GREEN → REFACTOR)"#;
+- **Tests alongside** — new code requires tests (TDD: RED → GREEN → REFACTOR)
+
+## Observability (MANDATORY)
+
+- **Every HTTP request MUST produce exactly ONE structured log row** — JSON, single line:
+  `{"level":"info","msg":"request completed","method":"POST","path":"/api/auth/login","status":200,"duration_ms":42}`
+  Never split one request across multiple lines (breaks log aggregators).
+- **Use the framework's BUILT-IN logging first — no extra library unless needed:**
+  - NestJS → built-in `Logger` from `@nestjs/common` (per-module: `private readonly logger = new Logger(AuthService.name)`). Zero dependencies.
+  - Express/Fastify → create a logging middleware FIRST (before routes) so every request is captured — custom middleware or pino-http. No scattered `console.log`.
+  - Go/Python/etc → stdlib logger or framework default first; structured libs (zap/structlog) only when built-in is insufficient.
+- **Log levels:** INFO = business events/lifecycle, WARN = suspicious/retryable, ERROR = failures WITH stack + context (what failed, inputs, error).
+- **Every catch block MUST log** — silent catches are forbidden. Log with context, never bare `console.log(error)`.
+- **Never log:** passwords, tokens, secrets, personal data. Mask/redact if unavoidable.
+- **One logger instance** — no ad-hoc loggers scattered across files; inject/import a single configured logger."#;
 
 #[derive(Debug, Serialize)]
 pub struct SolidityContract {
