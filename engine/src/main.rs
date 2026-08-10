@@ -18,6 +18,7 @@ mod generator;
 mod git_knowledge;
 mod palbox_context;
 mod planner;
+mod templates;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -105,6 +106,18 @@ fn main() -> anyhow::Result<()> {
         Command::Init { project } => {
             let palbox = project.join(".palbox");
             bootstrap(&palbox)?;
+            match templates::generate(&project) {
+                Ok(written) => {
+                    if written.is_empty() {
+                        log::info!("AGENTS.md + .cursorrules already exist — kept as-is");
+                    } else {
+                        for p in &written {
+                            log::info!("✅ Generated {}", p.display());
+                        }
+                    }
+                }
+                Err(e) => log::warn!("⚠ Template generation failed: {e}"),
+            }
             log::info!("Run 'palskills-engine serve' to start.");
         }
         Command::SyncGit { project, palbox } => {
