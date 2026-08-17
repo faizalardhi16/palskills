@@ -42,7 +42,7 @@ impl Default for OrchestrationPlan {
 
 /// Analyze a task prompt: detect intent, query CBM/grep, determine flow.
 /// Auto-generates advisory plan for complex tasks (no blocking gate).
-pub fn analyze(project_root: &Path, task: &str) -> anyhow::Result<OrchestrationPlan> {
+pub fn analyze(project_root: &Path, task: &str, palbox_active: bool) -> anyhow::Result<OrchestrationPlan> {
     let task_lower = task.to_lowercase();
     let mut flow = vec!["scan_context".to_string()];
     let mut confidence: u8 = 85;
@@ -74,8 +74,13 @@ pub fn analyze(project_root: &Path, task: &str) -> anyhow::Result<OrchestrationP
 
     if !has_palbox {
         confidence -= 15;
-        question = Some("No .palbox/ detected. Should I bootstrap the project first?".to_string());
-        flow.push("init_project".to_string());
+        question = Some("No .palbox/ detected — PASSIVE mode (no recording, no knowledge context). Run 'palskills-engine init' to enable the knowledge base.".to_string());
+        if !palbox_active {
+            // Passive mode: never suggest init_project flow or write plans
+            // (flow stays scan_context → dispatch only)
+        } else {
+            flow.push("init_project".to_string());
+        }
     }
 
     // ── CBM FIRST: query codebase for relevant symbols ──
@@ -138,7 +143,8 @@ pub fn analyze(project_root: &Path, task: &str) -> anyhow::Result<OrchestrationP
     confidence = confidence.min(95);
 
     // ── Advisory plan for complex / low-confidence tasks ──
-    let (plan_content, plan_path) = if confidence <= 70 || is_complex || is_build || is_plan {
+    // Passive mode (no .palbox): NEVER write plan files — would create folders.
+    let (plan_content, plan_path) = if palbox_active && (confidence <= 70 || is_complex || is_build || is_plan) {
         let (content, path) = generate_advisory_plan(
             project_root,
             task,

@@ -41,6 +41,9 @@ enum Command {
     Serve {
         #[arg(short, long)]
         project: Option<PathBuf>,
+        /// Root containing .palbox/ — defaults to project (monorepo/nested: point to parent)
+        #[arg(long)]
+        palbox: Option<PathBuf>,
         #[arg(long, default_value = "index.db")]
         cbm: PathBuf,
     },
@@ -71,30 +74,13 @@ fn bootstrap(palbox: &PathBuf) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Auto-detect project root by walking up from CWD.
+/// Project root = the folder that was opened (CWD), NOT a walk-up discovery.
+/// Deliberate: if Cursor is opened at C:/faizal/exon, .palbox lives there.
+/// No walk-up — otherwise a stray .palbox in a parent folder hijacks unrelated
+/// projects. If CWD has no .palbox, the engine runs in PASSIVE mode
+/// (no recording, no knowledge context, no folder creation).
 fn detect_project_root() -> anyhow::Result<PathBuf> {
-    let cwd = std::env::current_dir()?;
-    let mut current = cwd.clone();
-
-    loop {
-        if current.join(".palbox").exists()
-            || current.join("package.json").exists()
-            || current.join("Cargo.toml").exists()
-            || current.join("go.mod").exists()
-            || current.join("index.db").exists()
-        {
-            return Ok(current);
-        }
-        if let Some(parent) = current.parent() {
-            current = parent.to_path_buf();
-        } else {
-            break;
-        }
-        if current.parent().is_none() && !current.join("package.json").exists() {
-            break;
-        }
-    }
-    Ok(cwd)
+    Ok(std::env::current_dir()?)
 }
 
 fn main() -> anyhow::Result<()> {
@@ -149,15 +135,27 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Command::Serve { project, cbm } => {
+        Command::Serve { project, palbox, cbm } => {
             let rt = tokio::runtime::Runtime::new()?;
 
+            // project = CWD (opened folder); palbox defaults to project root.
+            // If no .palbox exists → PASSIVE mode: no recording, no context,
+            // no folder creation. User must run `init` explicitly to enable.
             let project_root = project.unwrap_or_else(|| detect_project_root().unwrap_or_else(|_| PathBuf::from(".")));
-            let palbox = project_root.join(".palbox");
+            let palbox_root = palbox.unwrap_or_else(|| project_root.clone());
+            let palbox = palbox_root.join(".palbox");
+            let palbox_active = palbox.exists();
 
-            if !palbox.exists() {
-                bootstrap(&palbox)?;
+            if palbox_active {
+                log::info!("📦 .palbox ACTIVE at {}", palbox.display());
+            } else {
+                log::warn!(
+                    "⚪ No .palbox at {} — PASSIVE mode (no recording, no context). Run 'palskills-engine init' to enable.",
+                    palbox.display()
+                );
             }
+
+            log::info!("📁 Project root (CWD-based): {}", project_root.display());
 
             rt.block_on(async {
                 let dash_palbox = palbox.clone();
@@ -168,7 +166,7 @@ fn main() -> anyhow::Result<()> {
                 });
                 log::info!("🌐 Dashboard: http://localhost:3030");
 
-                if let Err(e) = server::run_server(palbox, cbm).await {
+                if let Err(e) = server::run_server(project_root, palbox, palbox_active, cbm).await {
                     eprintln!("Server error: {e}");
                 }
             });

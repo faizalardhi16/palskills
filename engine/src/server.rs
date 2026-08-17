@@ -26,7 +26,9 @@ use crate::planner;
 // ── Shared state ─────────────────────────────────────────────────
 
 pub struct AppState {
+    pub project_root: PathBuf,
     pub palbox: PathBuf,
+    pub palbox_active: bool,
     pub cbm_path: PathBuf,
 }
 
@@ -73,7 +75,10 @@ fn out(s: String) -> Json<ToolOutput> {
 // ── Dashboard + State.md helpers ─────────────────────────────────
 
 fn tool_start(palbox: &PathBuf, skill: &str, msg: &str, task: &str) -> std::time::Instant {
-    let _ = generator::update_skill_state(palbox, skill, "inprogress", Some(msg), None, Some(task), None, None);
+    // Passive mode: no .palbox → skip State.md writes entirely (never create folders)
+    if palbox.exists() {
+        let _ = generator::update_skill_state(palbox, skill, "inprogress", Some(msg), None, Some(task), None, None);
+    }
     dashboard::emit_event(dashboard::PipelineEvent {
         event: "tool_start".into(),
         skill: Some(skill.into()),
@@ -87,7 +92,9 @@ fn tool_start(palbox: &PathBuf, skill: &str, msg: &str, task: &str) -> std::time
 
 fn tool_done(palbox: &PathBuf, skill: &str, msg: &str, dur: std::time::Instant, task: &str, flow: Option<Vec<String>>, confidence: Option<u8>) {
     let dur_ms = dur.elapsed().as_millis() as u64;
-    let _ = generator::update_skill_state(palbox, skill, "done", Some(msg), Some(dur_ms), Some(task), flow.as_deref(), confidence);
+    if palbox.exists() {
+        let _ = generator::update_skill_state(palbox, skill, "done", Some(msg), Some(dur_ms), Some(task), flow.as_deref(), confidence);
+    }
     dashboard::emit_event(dashboard::PipelineEvent {
         event: "tool_done".into(),
         skill: Some(skill.into()),
@@ -101,7 +108,9 @@ fn tool_done(palbox: &PathBuf, skill: &str, msg: &str, dur: std::time::Instant, 
 
 fn tool_error(palbox: &PathBuf, skill: &str, msg: &str, dur: std::time::Instant) {
     let dur_ms = dur.elapsed().as_millis() as u64;
-    let _ = generator::update_skill_state(palbox, skill, "error", Some(msg), Some(dur_ms), None, None, None);
+    if palbox.exists() {
+        let _ = generator::update_skill_state(palbox, skill, "error", Some(msg), Some(dur_ms), None, None, None);
+    }
     dashboard::emit_event(dashboard::PipelineEvent {
         event: "tool_error".into(),
         skill: Some(skill.into()),
@@ -153,9 +162,15 @@ impl AppState {
     )]
     fn orchestrate(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "orchestrate", &format!("Analyzing: {}", p.task), &p.task);
-        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
+        let root = &self.project_root;
 
-        match orchestrator::analyze(root, &p.task) {
+        // Passive mode: no .palbox → orchestrate still returns CBM flow analysis,
+        // but NEVER writes advisory plans (would create .palbox/plans/ folder).
+        if !self.palbox_active {
+            log::info!("⚪ Passive mode — orchestrate: flow detection only, no plan write");
+        }
+
+        match orchestrator::analyze(root, &p.task, self.palbox_active) {
             Ok(ctx) => {
                 let flow = ctx.flow.clone();
                 let conf = ctx.confidence;
@@ -186,7 +201,17 @@ impl AppState {
     fn plan(&self, Parameters(p): Parameters<PlanParams>) -> Json<ToolOutput> {
         let task_hint = p.issues.first().map(|i| i.title.clone()).unwrap_or_else(|| "multi-issue".into());
         let timer = tool_start(&self.palbox, "plan", &format!("Planning {} issues...", p.issues.len()), &task_hint);
-        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
+        let root = &self.project_root;
+
+        // Passive mode: no .palbox → never write plan files (no folder creation).
+        if !self.palbox_active {
+            let msg = format!(
+                "⚪ No .palbox at {} — plan grouping evaluated INLINE, files skipped (passive mode). Run 'palskills-engine init' to enable.",
+                self.palbox.display()
+            );
+            tool_done(&self.palbox, "plan", &msg, timer, &task_hint, None, Some(70));
+            return out(msg);
+        }
 
         match planner::plan_multi(root, p.issues) {
             Ok(output) => {
@@ -209,7 +234,7 @@ impl AppState {
     )]
     fn scan_context(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "scan_context", &format!("Scanning: {}", p.task), &p.task);
-        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
+        let root = &self.project_root;
 
         // Fast-path: check if CBM index exists
         let cbm_available = cbm_bridge::check_available(root).unwrap_or(false);
@@ -281,7 +306,9 @@ impl AppState {
             "Found {} symbols, {} files (via {}) + {} docs from .palbox/",
             output.symbols.len(), output.files.len(), output.source, docs.docs_found
         );
-        if !pending.is_empty() {
+        if !self.palbox_active {
+            msg.push_str(" | ⚪ PASSIVE — no .palbox (no docs/context)");
+        } else if !pending.is_empty() {
             msg.push_str(&format!(" | ⚠️ {} unrecorded git commits — consider record_session", pending.len()));
         }
         tool_done(&self.palbox, "scan_context", &msg, timer, &p.task, None, None);
@@ -309,7 +336,7 @@ impl AppState {
     )]
     fn run_tests(&self) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "run_tests", "Running tests...", "tests");
-        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
+        let root = &self.project_root;
         let commands = ["pytest -x --tb=short", "cargo test --quiet", "npm test -- --reporter=min"];
 
         // Diff-aware: list changed files for impact context
@@ -345,7 +372,18 @@ impl AppState {
     )]
     fn record_session(&self, Parameters(p): Parameters<RecordSessionParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "record_session", &format!("Recording: {}", p.task), &p.task);
-        let root = self.palbox.parent().unwrap_or(std::path::Path::new("."));
+        let root = &self.project_root;
+
+        // Passive mode: no .palbox → skip entirely, never create folders.
+        // User must run `palskills-engine init` explicitly to enable recording.
+        if !self.palbox_active {
+            let msg = format!(
+                "⚪ No .palbox at {} — record SKIPPED (passive mode). Run 'palskills-engine init' to enable the knowledge base.",
+                self.palbox.display()
+            );
+            tool_done(&self.palbox, "record_session", &msg, timer, &p.task, None, None);
+            return out(msg);
+        }
 
         let knowledge = generator::SessionKnowledge {
             summary: p.summary.clone(),
@@ -405,14 +443,17 @@ impl AppState {
 // ── Entry point ──────────────────────────────────────────────────
 
 pub async fn run_server(
+    project_root: PathBuf,
     palbox: PathBuf,
+    palbox_active: bool,
     cbm_path: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let state = AppState { palbox: palbox.clone(), cbm_path };
+    let state = AppState { project_root: project_root.clone(), palbox: palbox.clone(), palbox_active, cbm_path };
 
     let transport = (tokio::io::stdin(), FlushingWriter { inner: tokio::io::stdout() });
     eprintln!("[palskills-engine] MCP server starting — 6 tools (orchestrate, plan, scan_context, dispatch, run_tests, record_session)");
-    eprintln!("[palskills-engine] Palbox: {}", palbox.display());
+    eprintln!("[palskills-engine] Project root: {}", project_root.display());
+    eprintln!("[palskills-engine] Palbox: {} ({})", palbox.display(), if palbox_active { "ACTIVE" } else { "PASSIVE — no .palbox" });
     let service = state.serve(transport).await?;
     eprintln!("[palskills-engine] Connected.");
     let _ = service.waiting().await;
