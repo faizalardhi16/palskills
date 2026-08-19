@@ -72,9 +72,64 @@ fn out(s: String) -> Json<ToolOutput> {
     Json(ToolOutput { result: s })
 }
 
+// ── Observability: structured log (stderr) ──────────────────────
+//
+// stdout = MCP transport (must stay clean) → ALL tool logs go to stderr.
+// Every tool call emits THREE structured JSON rows:
+//   REQ  — request masuk (tool + input args)
+//   OK   — result function (summary + duration)  OR  ERR (error)
+//   OUT  — output yang di-return (truncated for huge payloads)
+// This satisfies the Observability rule in dispatch/SOLID contract.
+
+/// Truncate long strings so logs don't blow up (huge scan_context/record outputs).
+const MAX_LOG_FIELD: usize = 1200;
+
+fn clip(s: &str) -> String {
+    if s.len() <= MAX_LOG_FIELD {
+        s.to_string()
+    } else {
+        format!("{}…[+{} chars]", &s[..MAX_LOG_FIELD], s.len() - MAX_LOG_FIELD)
+    }
+}
+
+/// Emit one line of structured JSON to stderr (safe: stdout is MCP transport).
+fn log_json(obj: serde_json::Map<String, serde_json::Value>) {
+    eprintln!("{}", serde_json::Value::Object(obj));
+}
+
+fn log_req(skill: &str, input: &str) {
+    let mut m = serde_json::Map::new();
+    m.insert("event".into(), "REQ".into());
+    m.insert("tool".into(), skill.into());
+    m.insert("input".into(), serde_json::Value::String(clip(input)));
+    log_json(m);
+}
+
+fn log_ok(skill: &str, result: &str, output: &str, dur_ms: u64) {
+    let mut m = serde_json::Map::new();
+    m.insert("event".into(), "OK".into());
+    m.insert("tool".into(), skill.into());
+    m.insert("result".into(), serde_json::Value::String(clip(result)));
+    m.insert("output".into(), serde_json::Value::String(clip(output)));
+    m.insert("duration_ms".into(), dur_ms.into());
+    log_json(m);
+}
+
+fn log_err(skill: &str, result: &str, input: &str, dur_ms: u64) {
+    let mut m = serde_json::Map::new();
+    m.insert("event".into(), "ERR".into());
+    m.insert("tool".into(), skill.into());
+    m.insert("error".into(), serde_json::Value::String(clip(result)));
+    m.insert("input".into(), serde_json::Value::String(clip(input)));
+    m.insert("duration_ms".into(), dur_ms.into());
+    log_json(m);
+}
+
 // ── Dashboard + State.md helpers ─────────────────────────────────
 
-fn tool_start(palbox: &PathBuf, skill: &str, msg: &str, task: &str) -> std::time::Instant {
+fn tool_start(palbox: &PathBuf, skill: &str, msg: &str, task: &str, input: &str) -> std::time::Instant {
+    // Request masuk + args → stderr structured log
+    log_req(skill, input);
     // Passive mode: no .palbox → skip State.md writes entirely (never create folders)
     if palbox.exists() {
         let _ = generator::update_skill_state(palbox, skill, "inprogress", Some(msg), None, Some(task), None, None);
@@ -90,8 +145,10 @@ fn tool_start(palbox: &PathBuf, skill: &str, msg: &str, task: &str) -> std::time
     std::time::Instant::now()
 }
 
-fn tool_done(palbox: &PathBuf, skill: &str, msg: &str, dur: std::time::Instant, task: &str, flow: Option<Vec<String>>, confidence: Option<u8>) {
+fn tool_done(palbox: &PathBuf, skill: &str, msg: &str, dur: std::time::Instant, task: &str, flow: Option<Vec<String>>, confidence: Option<u8>, output: &str) {
     let dur_ms = dur.elapsed().as_millis() as u64;
+    // Result function + output → stderr structured log
+    log_ok(skill, msg, output, dur_ms);
     if palbox.exists() {
         let _ = generator::update_skill_state(palbox, skill, "done", Some(msg), Some(dur_ms), Some(task), flow.as_deref(), confidence);
     }
@@ -106,8 +163,10 @@ fn tool_done(palbox: &PathBuf, skill: &str, msg: &str, dur: std::time::Instant, 
     });
 }
 
-fn tool_error(palbox: &PathBuf, skill: &str, msg: &str, dur: std::time::Instant) {
+fn tool_error(palbox: &PathBuf, skill: &str, msg: &str, dur: std::time::Instant, input: &str) {
     let dur_ms = dur.elapsed().as_millis() as u64;
+    // Error + input → stderr structured log
+    log_err(skill, msg, input, dur_ms);
     if palbox.exists() {
         let _ = generator::update_skill_state(palbox, skill, "error", Some(msg), Some(dur_ms), None, None, None);
     }
@@ -161,7 +220,7 @@ impl AppState {
         description = "Analyze task via CBM code search. Returns recommended flow, confidence %, and for complex tasks an advisory plan saved to .palbox/plans/ (no blocking gate). Use this FIRST before any code generation."
     )]
     fn orchestrate(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
-        let timer = tool_start(&self.palbox, "orchestrate", &format!("Analyzing: {}", p.task), &p.task);
+        let timer = tool_start(&self.palbox, "orchestrate", &format!("Analyzing: {}", p.task), &p.task, &p.task);
         let root = &self.project_root;
 
         // Passive mode: no .palbox → orchestrate still returns CBM flow analysis,
@@ -176,16 +235,16 @@ impl AppState {
                 let conf = ctx.confidence;
                 let summary = ctx.summary.clone();
                 let has_plan = ctx.plan_content.is_some();
-                tool_done(&self.palbox, "orchestrate", &summary, timer, &p.task, Some(flow), Some(conf));
 
                 let mut output = serde_json::to_string_pretty(&ctx).unwrap_or_default();
                 if has_plan {
                     output.push_str("\n\n📋 Advisory plan auto-generated — review .palbox/plans/ if needed.");
                 }
+                tool_done(&self.palbox, "orchestrate", &summary, timer, &p.task, Some(flow), Some(conf), &output);
                 out(output)
             }
             Err(e) => {
-                tool_error(&self.palbox, "orchestrate", &format!("Error: {e}"), timer);
+                tool_error(&self.palbox, "orchestrate", &format!("Error: {e}"), timer, &p.task);
                 out(format!("Error: {e}"))
             }
         }
@@ -200,7 +259,9 @@ impl AppState {
     )]
     fn plan(&self, Parameters(p): Parameters<PlanParams>) -> Json<ToolOutput> {
         let task_hint = p.issues.first().map(|i| i.title.clone()).unwrap_or_else(|| "multi-issue".into());
-        let timer = tool_start(&self.palbox, "plan", &format!("Planning {} issues...", p.issues.len()), &task_hint);
+        let input_json = serde_json::to_string(&p.issues).unwrap_or_else(|_| task_hint.clone());
+        let input = clip(&input_json);
+        let timer = tool_start(&self.palbox, "plan", &format!("Planning {} issues...", p.issues.len()), &task_hint, &input);
         let root = &self.project_root;
 
         // Passive mode: no .palbox → never write plan files (no folder creation).
@@ -209,18 +270,19 @@ impl AppState {
                 "⚪ No .palbox at {} — plan grouping evaluated INLINE, files skipped (passive mode). Run 'palskills-engine init' to enable.",
                 self.palbox.display()
             );
-            tool_done(&self.palbox, "plan", &msg, timer, &task_hint, None, Some(70));
+            tool_done(&self.palbox, "plan", &msg, timer, &task_hint, None, Some(70), &msg);
             return out(msg);
         }
 
         match planner::plan_multi(root, p.issues) {
             Ok(output) => {
                 let summary = output.summary.clone();
-                tool_done(&self.palbox, "plan", &summary, timer, &task_hint, None, Some(output.confidence));
-                out(serde_json::to_string_pretty(&output).unwrap_or_default())
+                let output_json = serde_json::to_string_pretty(&output).unwrap_or_default();
+                tool_done(&self.palbox, "plan", &summary, timer, &task_hint, None, Some(output.confidence), &output_json);
+                out(output_json)
             }
             Err(e) => {
-                tool_error(&self.palbox, "plan", &format!("Error: {e}"), timer);
+                tool_error(&self.palbox, "plan", &format!("Error: {e}"), timer, &input);
                 out(format!("Error: {e}"))
             }
         }
@@ -233,7 +295,7 @@ impl AppState {
         description = "Search codebase via CBM + read .palbox/ docs. Returns code symbols/files AND architecture summary, recent flows, and session history. Fast — skips deep grep when no CBM, returns light file listing instead. Also flags unrecorded git commits in .palbox/pending/."
     )]
     fn scan_context(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
-        let timer = tool_start(&self.palbox, "scan_context", &format!("Scanning: {}", p.task), &p.task);
+        let timer = tool_start(&self.palbox, "scan_context", &format!("Scanning: {}", p.task), &p.task, &p.task);
         let root = &self.project_root;
 
         // Fast-path: check if CBM index exists
@@ -311,7 +373,7 @@ impl AppState {
         } else if !pending.is_empty() {
             msg.push_str(&format!(" | ⚠️ {} unrecorded git commits — consider record_session", pending.len()));
         }
-        tool_done(&self.palbox, "scan_context", &msg, timer, &p.task, None, None);
+        tool_done(&self.palbox, "scan_context", &msg, timer, &p.task, None, None, &serde_json::to_string_pretty(&output).unwrap_or_default());
         out(serde_json::to_string_pretty(&output).unwrap_or_default())
     }
 
@@ -321,12 +383,13 @@ impl AppState {
         description = "SOLID discipline gate. Returns SOLID principles contract. ZERO I/O — pure constraints. Context was already gathered by scan_context. Read this contract BEFORE writing any code."
     )]
     fn dispatch(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
-        let timer = tool_start(&self.palbox, "dispatch", "Generating SOLID contract", &p.task);
+        let timer = tool_start(&self.palbox, "dispatch", "Generating SOLID contract", &p.task, &p.task);
 
         let contract = dispatch::generate_contract(&p.task);
         let msg = "SOLID contract ready";
-        tool_done(&self.palbox, "dispatch", msg, timer, &p.task, None, None);
-        out(serde_json::to_string_pretty(&contract).unwrap_or_default())
+        let output = serde_json::to_string_pretty(&contract).unwrap_or_default();
+        tool_done(&self.palbox, "dispatch", msg, timer, &p.task, None, None, &output);
+        out(output)
     }
 
     /// Verdash: Run actual test suite (diff-aware).
@@ -335,7 +398,7 @@ impl AppState {
         description = "Run project test suite. Auto-detects runner (pytest, cargo test, npm test). Returns pass/fail results AND changed files from git diff (impact). Fails are SOFT BLOCKERS — fix and re-run."
     )]
     fn run_tests(&self) -> Json<ToolOutput> {
-        let timer = tool_start(&self.palbox, "run_tests", "Running tests...", "tests");
+        let timer = tool_start(&self.palbox, "run_tests", "Running tests...", "tests", "");
         let root = &self.project_root;
         let commands = ["pytest -x --tb=short", "cargo test --quiet", "npm test -- --reporter=min"];
 
@@ -352,13 +415,15 @@ impl AppState {
                 let stdout = String::from_utf8_lossy(&result.stdout);
                 let stderr = String::from_utf8_lossy(&result.stderr);
                 if stdout.contains("pass") || stdout.contains("ok") || result.status.success() {
-                    tool_done(&self.palbox, "run_tests", "Tests passed ✓", timer, "tests", None, None);
-                    return out(format!("🧪 Tests passed:\n{stdout}\n{stderr}{impact_note}"));
+                    let output = format!("🧪 Tests passed:\n{stdout}\n{stderr}{impact_note}");
+                    tool_done(&self.palbox, "run_tests", "Tests passed ✓", timer, "tests", None, None, &output);
+                    return out(output);
                 }
             }
         }
-        tool_error(&self.palbox, "run_tests", "No test runner found", timer);
-        out(format!("🧪 No test runner detected.{impact_note}"))
+        let err_out = format!("🧪 No test runner detected.{impact_note}");
+        tool_error(&self.palbox, "run_tests", "No test runner found", timer, "");
+        out(err_out)
     }
 
     /// Panthalus: Persist session knowledge + sync docs to .palbox/.
@@ -371,7 +436,12 @@ impl AppState {
         description = "Record session knowledge AND sync docs. Pass structured knowledge: summary (what was done), decisions (why), modules (what each does), lessons (gotchas), api (endpoints). This builds .palbox/ knowledge base for future sessions. Also marks pending git commits as recorded."
     )]
     fn record_session(&self, Parameters(p): Parameters<RecordSessionParams>) -> Json<ToolOutput> {
-        let timer = tool_start(&self.palbox, "record_session", &format!("Recording: {}", p.task), &p.task);
+        // Compact input summary for the REQ log (task + counts, not full knowledge dump)
+        let input = format!(
+            "task={} | summary={} | decisions={} | modules={} | lessons={} | api={}",
+            p.task, p.summary, p.decisions.len(), p.modules.len(), p.lessons.len(), p.api.len()
+        );
+        let timer = tool_start(&self.palbox, "record_session", &format!("Recording: {}", p.task), &p.task, &input);
         let root = &self.project_root;
 
         // Passive mode: no .palbox → skip entirely, never create folders.
@@ -381,7 +451,7 @@ impl AppState {
                 "⚪ No .palbox at {} — record SKIPPED (passive mode). Run 'palskills-engine init' to enable the knowledge base.",
                 self.palbox.display()
             );
-            tool_done(&self.palbox, "record_session", &msg, timer, &p.task, None, None);
+            tool_done(&self.palbox, "record_session", &msg, timer, &p.task, None, None, &msg);
             return out(msg);
         }
 
@@ -435,7 +505,7 @@ impl AppState {
         }
 
         let msg = format!("Knowledge recorded ({} chars)", report.len());
-        tool_done(&self.palbox, "record_session", &msg, timer, &p.task, None, None);
+        tool_done(&self.palbox, "record_session", &msg, timer, &p.task, None, None, &report);
         out(report)
     }
 }
