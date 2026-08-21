@@ -146,6 +146,25 @@ fn main() -> anyhow::Result<()> {
             let palbox = palbox_root.join(".palbox");
             let palbox_active = palbox.exists();
 
+            // 🔒 HARDENING v3.6.5: pernah ada kasus record_session nulis ke palbox
+            // "global" karena --project / --palbox nyasar ke luar folder yang dibuka.
+            // Deteksi & warning jelas, biar gak diam-diam nulis ke lokasi salah.
+            if palbox_root != project_root {
+                log::warn!(
+                    "⚠️ --palbox ({}) BERBEDA dari project root ({}) — .palbox akan ditulis KE LOKASI INI, BUKAN folder yang dibuka. Pastikan ini disengaja (monorepo: FE/BE share satu .palbox parent).",
+                    palbox_root.display(),
+                    project_root.display()
+                );
+            }
+            // Kalau project root TIDAK punya .palbox, jangan pernah menulis ke mana pun:
+            // tetapkan PASSIVE (no recording, no folder creation). Ini mencegah cross-project.
+            if !project_root.join(".palbox").exists() && !palbox_active {
+                log::warn!(
+                    "🚫 Tidak ada .palbox di project root ({}) — PASSIVE mode. record_session TIDAK akan nulis ke folder lain. Jalankan 'palskills-engine init' di folder project kalau mau active.",
+                    project_root.display()
+                );
+            }
+
             if palbox_active {
                 log::info!("📦 .palbox ACTIVE at {}", palbox.display());
             } else {
