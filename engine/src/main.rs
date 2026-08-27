@@ -17,6 +17,7 @@ mod dispatch;
 mod generator;
 mod git_knowledge;
 mod palbox_context;
+mod palhub;
 mod planner;
 mod templates;
 
@@ -62,6 +63,11 @@ enum Command {
         /// Root containing .palbox/ — defaults to project (monorepo: point to parent)
         #[arg(long)]
         palbox: Option<PathBuf>,
+    },
+    /// Smoke: cek koneksi PalHub backend (search + record) tanpa MCP
+    PalhubCheck {
+        #[arg(short, long, default_value = "test")]
+        query: String,
     },
 }
 
@@ -189,6 +195,24 @@ fn main() -> anyhow::Result<()> {
                     eprintln!("Server error: {e}");
                 }
             });
+        }
+        Command::PalhubCheck { query } => {
+            let client = palhub::PalhubClient::from_env().unwrap_or_else(|| palhub::PalhubClient {
+                base_url: std::env::var("PALHUB_URL").unwrap_or_else(|_| "http://127.0.0.1:8787".into()),
+                specialist_id: 10,
+            });
+            let hits = client.search(&query, 5);
+            println!("PALHUB_SEARCH_HITS={}", hits.len());
+            for h in &hits {
+                println!(" - [{}] {} ({})", h.id, h.title, h.source.as_deref().unwrap_or(""));
+            }
+            let content = format!(
+                "Smoke test dari palskills-engine v3.6.5-palhub.\nQuery: {}\nHits: {}",
+                query,
+                hits.len()
+            );
+            let id = client.record("PalhubCheck smoke", &content, "palskills-smoke");
+            println!("PALHUB_RECORD_ID={:?}", id);
         }
     }
 

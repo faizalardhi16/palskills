@@ -21,6 +21,7 @@ use crate::generator;
 use crate::git_knowledge;
 use crate::orchestrator;
 use crate::palbox_context;
+use crate::palhub;
 use crate::planner;
 
 // ── Shared state ─────────────────────────────────────────────────
@@ -60,6 +61,45 @@ pub struct RecordSessionParams {
 #[derive(Deserialize, JsonSchema)]
 pub struct PlanParams {
     pub issues: Vec<planner::PlanIssue>,
+}
+
+// ── PalHub knowledge backend ─────────────────────────────────────
+// scan_context baca knowledge dari PalHub; record_session publish ke PalHub.
+// Fail-open: unreachable → warn + tetap jalan lokal. Env: PALHUB_URL,
+// PALHUB_SPECIALIST (default 10 = "Engineering"), PALHUB_DISABLED=1 utk matiin.
+
+fn palhub_content(p: &RecordSessionParams) -> String {
+    let mut content = format!("# Session: {}\n\n## Summary\n{}\n", p.task, p.summary);
+    if !p.decisions.is_empty() {
+        content.push_str("\n## Decisions\n");
+        for d in &p.decisions {
+            content.push_str(&format!("- {d}\n"));
+        }
+    }
+    if !p.modules.is_empty() {
+        content.push_str("\n## Modules\n");
+        for m in &p.modules {
+            content.push_str(&format!("- {m}\n"));
+        }
+    }
+    if !p.lessons.is_empty() {
+        content.push_str("\n## Lessons\n");
+        for l in &p.lessons {
+            content.push_str(&format!("- {l}\n"));
+        }
+    }
+    if !p.api.is_empty() {
+        content.push_str("\n## API\n");
+        for a in &p.api {
+            content.push_str(&format!("- {a}\n"));
+        }
+    }
+    content
+}
+
+fn palhub_publish(p: &RecordSessionParams) -> Option<i64> {
+    palhub::PalhubClient::from_env()?
+        .record(&format!("session: {}", p.task), &palhub_content(p), "palskills-engine")
 }
 
 /// Cursor MCP requires outputSchema type: "object".
@@ -292,7 +332,7 @@ impl AppState {
     /// Fast: skips deep grep when CBM unavailable — returns light listing + docs.
     #[tool(
         name = "scan_context",
-        description = "Search codebase via CBM + read .palbox/ docs. Returns code symbols/files AND architecture summary, recent flows, and session history. Fast — skips deep grep when no CBM, returns light file listing instead. Also flags unrecorded git commits in .palbox/pending/."
+        description = "Search codebase via CBM + read .palbox/ docs + search PalHub knowledge (REST). Returns code symbols/files AND architecture summary, recent flows, session history AND palhub_knowledge hits. Fast — skips deep grep when no CBM, returns light file listing instead. Also flags unrecorded git commits in .palbox/pending/."
     )]
     fn scan_context(&self, Parameters(p): Parameters<TaskParams>) -> Json<ToolOutput> {
         let timer = tool_start(&self.palbox, "scan_context", &format!("Scanning: {}", p.task), &p.task, &p.task);
@@ -316,6 +356,10 @@ impl AppState {
         };
         let docs = palbox_context::read_docs(root, &p.task);
 
+        // PalHub knowledge — scan dari backend (fail-open: unreachable → kosong)
+        let palhub_client = palhub::PalhubClient::from_env();
+        let palhub_hits = palhub_client.as_ref().map(|c| c.search(&p.task, 8)).unwrap_or_default();
+
         #[derive(Serialize)]
         struct ContextOutput {
             symbols: Vec<String>,
@@ -330,7 +374,16 @@ impl AppState {
             recent_flows: Vec<String>,
             recent_sessions: Vec<String>,
             latest_plan: Option<String>,
+            palhub_knowledge: Vec<PalhubOut>,
             pending_commits: Vec<PendingOut>,
+        }
+
+        #[derive(Serialize)]
+        struct PalhubOut {
+            id: i64,
+            title: String,
+            content: String,
+            source: Option<String>,
         }
 
         #[derive(Serialize)]
@@ -361,13 +414,38 @@ impl AppState {
             recent_flows: docs.recent_flows,
             recent_sessions: docs.recent_sessions,
             latest_plan: docs.latest_plan,
+            palhub_knowledge: palhub_hits
+                .iter()
+                .map(|h| PalhubOut {
+                    id: h.id,
+                    title: h.title.clone(),
+                    content: h.content.clone(),
+                    source: h.source.clone(),
+                })
+                .collect(),
             pending_commits: pending_out,
         };
 
         let mut msg = format!(
-            "Found {} symbols, {} files (via {}) + {} docs from .palbox/",
-            output.symbols.len(), output.files.len(), output.source, docs.docs_found
+            "Found {} symbols, {} files (via {}) + {} docs from .palbox/ + {} knowledge from PalHub",
+            output.symbols.len(),
+            output.files.len(),
+            output.source,
+            docs.docs_found,
+            palhub_hits.len()
         );
+        if !palhub_hits.is_empty() {
+            msg.push_str(&format!(
+                " ({}: {})",
+                palhub_hits.len(),
+                palhub_hits
+                    .iter()
+                    .take(3)
+                    .map(|h| h.title.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
         if !self.palbox_active {
             msg.push_str(" | ⚪ PASSIVE — no .palbox (no docs/context)");
         } else if !pending.is_empty() {
@@ -433,7 +511,7 @@ impl AppState {
     /// Also consumes unrecorded git commits from .palbox/pending/ (Layer 1).
     #[tool(
         name = "record_session",
-        description = "Record session knowledge AND sync docs. Pass structured knowledge: summary (what was done), decisions (why), modules (what each does), lessons (gotchas), api (endpoints). This builds .palbox/ knowledge base for future sessions. Also marks pending git commits as recorded."
+        description = "Record session knowledge AND sync docs. Pass structured knowledge: summary (what was done), decisions (why), modules (what each does), lessons (gotchas), api (endpoints). This builds .palbox/ knowledge base for future sessions. Knowledge juga di-publish ke PalHub (fail-open). Also marks pending git commits as recorded."
     )]
     fn record_session(&self, Parameters(p): Parameters<RecordSessionParams>) -> Json<ToolOutput> {
         // Compact input summary for the REQ log (task + counts, not full knowledge dump)
@@ -444,13 +522,19 @@ impl AppState {
         let timer = tool_start(&self.palbox, "record_session", &format!("Recording: {}", p.task), &p.task, &input);
         let root = &self.project_root;
 
-        // Passive mode: no .palbox → skip entirely, never create folders.
-        // User must run `palskills-engine init` explicitly to enable recording.
+        // Passive mode: no .palbox → skip local entirely, never create folders.
+        // Tapi kalau PalHub backend dikonfigurasi, knowledge tetap di-publish ke sana.
         if !self.palbox_active {
-            let msg = format!(
-                "⚪ No .palbox at {} — record SKIPPED (passive mode). Run 'palskills-engine init' to enable the knowledge base.",
+            let mut msg = format!(
+                "⚪ No .palbox at {} — local record SKIPPED (passive mode).",
                 self.palbox.display()
             );
+            match palhub_publish(&p) {
+                Some(note_id) => msg.push_str(&format!("\n✅ PalHub knowledge published (note #{note_id})")),
+                None => msg.push_str(
+                    "\nℹ PalHub publish skipped/failed (fail-open). Jalankan 'palskills-engine init' utk knowledge base lokal.",
+                ),
+            }
             tool_done(&self.palbox, "record_session", &msg, timer, &p.task, None, None, &msg);
             return out(msg);
         }
@@ -502,6 +586,12 @@ impl AppState {
             Err(e) => {
                 report.push_str(&format!("\n⚠ Docs sync failed: {e}"));
             }
+        }
+
+        // 3. Publish ke PalHub (fail-open: unreachable → warn, tetap lanjut)
+        match palhub_publish(&p) {
+            Some(note_id) => report.push_str(&format!("\n✅ PalHub knowledge published (note #{note_id})\n")),
+            None => report.push_str("\n⚠ PalHub publish skipped/failed (fail-open)\n"),
         }
 
         let msg = format!("Knowledge recorded ({} chars)", report.len());
